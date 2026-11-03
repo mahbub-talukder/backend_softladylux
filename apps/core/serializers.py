@@ -68,6 +68,13 @@ class MediaUploadSerializer(serializers.ModelSerializer):
         self._size = size
         return f
 
+    def validate(self, data):
+        # §10: product photos need at least 600 px on the long side.
+        if data.get("kind") == MediaKind.PRODUCT and max(getattr(self, "_size", (0, 0))) < 600:
+            raise serializers.ValidationError(
+                {"file": "Product photos must be at least 600 px on the long side."})
+        return data
+
     def create(self, validated):
         validated["width"], validated["height"] = getattr(self, "_size", (0, 0))
         validated["uploaded_by"] = self.context["request"].user

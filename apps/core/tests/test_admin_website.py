@@ -24,7 +24,7 @@ def test_upload_stores_original_and_dimensions(media):  # WEB-09
 
 @pytest.mark.parametrize("fmt,name", [("JPEG", "a.jpg"), ("WEBP", "a.webp")])
 def test_upload_accepts_jpg_webp(as_user, owner, fmt, name):
-    r = as_user(owner).post(f"{A}/media/", {"file": image_file(name, fmt), "kind": "product",
+    r = as_user(owner).post(f"{A}/media/", {"file": image_file(name, fmt), "kind": "banner",
                                             "alt_text": "x"}, format="multipart")
     assert r.status_code == 201
 

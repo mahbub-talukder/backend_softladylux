@@ -1,9 +1,12 @@
 """Public read-only endpoints. SRS §7 public list; SET-06, THM-06, WEB-06, WEB-07."""
 
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.catalog import services
 
 from .cache import cached
 from .models import (
@@ -25,6 +28,23 @@ from .serializers import (
     TrustItemSerializer,
     VideoSerializer,
 )
+
+
+def _cards(cond, n):
+    """CAT-07/WEB-06: New arrivals, Signature and Offers fill automatically from product flags."""
+    from apps.catalog import public
+
+    return [public.card(p) for p in public.products_qs().filter(cond).distinct()[:n]]
+
+
+def _categories():
+    """WEB-03: category tiles for the home carousel (active categories, in order)."""
+    from apps.catalog.models import Category
+
+    return [{"name": c.name, "slug": c.slug,
+             "tile": ({"url": c.tile_media.file.url, "alt_text": c.tile_media.alt_text}
+                      if c.tile_media else None)}
+            for c in Category.objects.filter(is_active=True).select_related("tile_media")]
 
 
 class PublicView(APIView):
@@ -65,7 +85,10 @@ class HomeView(PublicView):
                     many=True).data,
                 "banners": BannerSerializer(
                     Banner.objects.filter(is_active=True, media__isnull=False), many=True).data,
-                "categories": [],
+                "categories": _categories(),
+                "new_arrivals": _cards(services.new_arrivals_q(), 8),
+                "signature": _cards(Q(is_signature=True), 6),
+                "offers": _cards(services.offers_q(), 8),
                 "trust": TrustItemSerializer(
                     TrustItem.objects.filter(is_active=True), many=True).data,
                 "videos": VideoSerializer(Video.objects.filter(is_active=True), many=True).data,

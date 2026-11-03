@@ -44,6 +44,10 @@ MATRIX = [
     ("get", "/website/trust/", "website.manage"),
     ("get", "/website/pages/", "website.manage"),
     ("post", "/theme/reset/", "theme.manage"),
+    ("get", "/categories/", "products.view"),
+    ("get", "/products/", "products.view"),
+    ("get", "/products/export/", "products.view"),
+    ("get", "/size-charts/", "products.view"),
     ("post", "/media/", "website.manage"),
 ]
 
@@ -56,6 +60,18 @@ def test_matrix_granted_vs_denied(as_user, make_staff, method, path, code):
     allowed = getattr(as_user(make_staff(code)), method)(f"{A}{path}", format="json")
     assert allowed.status_code != 403
     assert allowed.status_code < 500
+
+
+@pytest.mark.parametrize("method,path,code", [
+    ("post", "/categories/", "products.manage"),
+    ("post", "/products/", "products.manage"),
+    ("post", "/products/bulk/", "products.manage"),
+])
+def test_catalogue_writes_need_manage_not_just_view(as_user, make_staff, method, path, code):
+    """PRM-05: view access alone never allows a write."""
+    r = getattr(as_user(make_staff("products.view")), method)(f"{A}{path}", {}, format="json")
+    assert r.status_code == 403
+    assert getattr(as_user(make_staff(code)), method)(f"{A}{path}", {}, format="json").status_code != 403
 
 
 @pytest.mark.parametrize("method,path", [

@@ -25,7 +25,8 @@ def test_public_theme_default_signature_small(api_client):  # THM-13, THM-06 (<2
 
 def test_home_empty_then_filled(api_client):  # WEB-06
     d = api_client.get("/api/v1/home/").data
-    assert d["carousel"] == [] and d["categories"] == [] and len(d["trust"]) == 3
+    assert d["carousel"] == [] and len(d["trust"]) == 3
+    assert len(d["categories"]) == 8  # seeded (CAT-01)
     m = MediaAsset.objects.create(file="x.png", kind="carousel", alt_text="a")
     CarouselSlide.objects.create(media=m, heading="Hi")
     CarouselSlide.objects.create(media=m, heading="Off", is_active=False)

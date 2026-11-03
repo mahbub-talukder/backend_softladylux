@@ -25,6 +25,8 @@ INSTALLED_APPS = [
     "django_q",
     "apps.core",
     "apps.accounts",
+    "apps.catalog",
+    "apps.inventory",
 ]
 
 MIDDLEWARE = [
