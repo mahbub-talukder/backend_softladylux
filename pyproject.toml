@@ -5,6 +5,10 @@ extend-exclude = ["migrations"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "DJ"]
+ignore = ["DJ008"]  # __str__ is not needed on content/config models
+
+[tool.ruff.lint.per-file-ignores]
+"apps/accounts/permissions.py" = ["E501"]  # one-line catalogue rows (SRS §2.2)
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"

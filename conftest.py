@@ -31,19 +31,71 @@ def api_client():
     return RecordingClient()
 
 
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    """SET-06/WEB-10: public content is cached; start every test cold."""
+    from django.core.cache import cache
+
+    cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _tmp_media(settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path / "media"
+
+
+@pytest.fixture
+def owner(db):
+    from apps.accounts.models import User
+
+    return User.objects.create_superuser(email="owner@example.com", password="owner-pass-123",
+                                         full_name="Owner")
+
+
+@pytest.fixture
+def make_staff(db):
+    """PRM-01: a Staff user holding exactly the given permission codes."""
+    from apps.accounts.models import Role, User
+    from apps.accounts.permissions import set_permissions
+
+    counter = {"n": 0}
+
+    def _make(*codes):
+        counter["n"] += 1
+        u = User.objects.create_user(email=f"staff{counter['n']}@example.com",
+                                     password="staff-pass-123", full_name="Staff", role=Role.STAFF)
+        set_permissions(u, codes)
+        return u
+
+    return _make
+
+
+@pytest.fixture
+def as_user(api_client):
+    def _as(user):
+        api_client.force_authenticate(user)
+        return api_client
+
+    return _as
+
+
 def _api_routes(patterns=None, prefix=""):
     from django.urls import URLPattern, URLResolver, get_resolver
 
     patterns = patterns if patterns is not None else get_resolver().url_patterns
     for p in patterns:
-        route = prefix + str(p.pattern)
+        # Mirror Django's ResolverMatch.route: a child's leading "^" is dropped after a prefix.
+        own = str(p.pattern)
+        route = prefix + (own[1:] if prefix and own.startswith("^") else own)
         if isinstance(p, URLResolver):
             yield from _api_routes(p.url_patterns, route)
         elif isinstance(p, URLPattern) and route.startswith("api/v1/"):
             cb = p.callback
             actions = getattr(cb, "actions", None)  # ViewSets
             if actions:
-                methods = {m.upper() for m in actions}
+                # Honour http_method_names (edit-only viewsets); skip HEAD/OPTIONS.
+                allowed = set(getattr(getattr(cb, "cls", None), "http_method_names", actions))
+                methods = {m.upper() for m in actions if m in allowed and m not in SKIP_METHODS}
             else:
                 cls = getattr(cb, "cls", None) or getattr(cb, "view_class", None)
                 methods = {
