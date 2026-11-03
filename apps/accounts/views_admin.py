@@ -9,6 +9,8 @@ from datetime import timedelta
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -46,6 +48,7 @@ def me_payload(user):
     }
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")  # ARC-06: SPA reads csrftoken
 class AdminLoginView(APIView):
     """ACC-10/ACC-03: email + password for Owner/Staff only. Customers get the same generic
     error. Sets HTTP-only JWT cookies (ARC-06)."""
@@ -80,6 +83,7 @@ class AdminLoginView(APIView):
         return set_auth_cookies(response, user, remember=bool(request.data.get("remember", True)))
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")  # ARC-06: SPA reads csrftoken
 class AdminRefreshView(APIView):
     """ARC-06: rotate the refresh cookie (access lives 15 min). Deactivated users are refused
     (PRM-07)."""
@@ -110,6 +114,7 @@ class AdminLogoutView(APIView):
         return clear_auth_cookies(Response(status=status.HTTP_204_NO_CONTENT))
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")  # ARC-06: SPA reads csrftoken
 class AdminMeView(APIView):
     """PRM-04: own role and permissions, read from the DB on every request (PRM-03)."""
 

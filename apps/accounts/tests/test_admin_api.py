@@ -161,3 +161,18 @@ def test_put_permissions_adds_dependencies_and_validates(as_user, owner, make_st
 def test_put_user_row_not_allowed(as_user, owner, make_staff):
     s = make_staff("orders.view")
     assert as_user(owner).put(f"{BASE}/users/{s.id}/", {}, format="json").status_code == 405
+
+
+def test_login_sets_readable_csrf_cookie_and_writes_need_it(owner):
+    """ARC-06: cookie-authenticated writes need X-CSRFToken, so login must hand the SPA a
+    JS-readable csrftoken cookie; without the header the write is refused."""
+    from rest_framework.test import APIClient
+
+    c = APIClient(enforce_csrf_checks=True)
+    r = c.post(f"{BASE}/auth/login/", {"email": owner.email, "password": "owner-pass-123"},
+               format="json")
+    token = r.cookies["csrftoken"].value
+    assert not r.cookies["csrftoken"]["httponly"]
+    assert c.patch(f"{BASE}/settings/", {"tagline": "x"}, format="json").status_code == 403
+    ok = c.patch(f"{BASE}/settings/", {"tagline": "x"}, format="json", HTTP_X_CSRFTOKEN=token)
+    assert ok.status_code == 200

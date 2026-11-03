@@ -51,6 +51,10 @@ services:
       context: ../../frontend
       target: prod
     env_file: ../../.env
+    environment:
+      NUXT_IMAGE_DIR: /media   # Nuxt Image (IPX) reads originals from the shared media volume (WEB-09)
+    volumes:
+      - media:/media:ro
     restart: unless-stopped
 
   nginx:
