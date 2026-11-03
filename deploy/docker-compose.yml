@@ -1,0 +1,72 @@
+# Production-style stack. Run from the PROJECT ROOT (parent of backend/ and frontend/):
+#   docker compose -f backend/deploy/docker-compose.yml up --build
+# Config comes from <project root>/.env (copy backend/.env.example). No Redis: Django-Q2 uses PostgreSQL.
+name: softladylux
+
+services:
+  db:
+    image: postgres:16
+    env_file: ../../.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ..
+    env_file: ../../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      RUN_MIGRATIONS: "1"
+    volumes:
+      - media:/app/media
+      - static:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/')"]
+      interval: 10s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    build: ..
+    command: python manage.py qcluster
+    env_file: ../../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+    volumes:
+      - media:/app/media
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../../frontend
+      target: prod
+    env_file: ../../.env
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - media:/media:ro
+      - static:/static:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  media:
+  static:

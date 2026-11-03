@@ -1,0 +1,31 @@
+# Dev overrides (live reload). Run from the PROJECT ROOT:
+#   docker compose -f backend/deploy/docker-compose.yml -f backend/deploy/docker-compose.dev.yml up --build
+services:
+  backend:
+    build:
+      context: ..
+      args:
+        INSTALL_DEV: "1"
+    command: python manage.py runserver 0.0.0.0:8000
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+    volumes:
+      - ..:/app
+
+  worker:
+    build:
+      context: ..
+      args:
+        INSTALL_DEV: "1"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+    volumes:
+      - ..:/app
+
+  frontend:
+    build:
+      context: ../../frontend
+      target: dev
+    volumes:
+      - ../../frontend:/app
+      - /app/node_modules
