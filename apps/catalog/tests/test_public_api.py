@@ -151,3 +151,14 @@ def test_listing_query_count_is_flat(api_client, bras, django_assert_max_num_que
         product(f"Extra {i}", cat="bras", sub="air-bra")
     with django_assert_max_num_queries(25):
         api_client.get(P, {"category": "bras"})
+
+
+def test_category_csv_and_cross_category_facet(api_client, bras):  # CAT-20
+    product("A Panty", cat="panties", compare="1500")
+    both = slugs(api_client.get(P, {"category": "bras,panties"}))
+    assert len(both) == 4
+    r = api_client.get(P, {"offers": 1})
+    cats = {c["slug"]: c["count"] for c in r.data["facets"]["categories"]}
+    assert cats == {"bras": 1, "panties": 1} and r.data["facets"]["subcategories"] == []
+    only = api_client.get(P, {"category": "bras"}).data["facets"]
+    assert only["categories"] == [] and len(only["subcategories"]) == 3

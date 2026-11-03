@@ -75,12 +75,12 @@ def _csv(request, key):
     return [x.strip() for x in request.query_params.get(key, "").split(",") if x.strip()]
 
 
-def filtered(request, base=None, skip_sub=False):
+def filtered(request, base=None, skip_sub=False, skip_cat=False):
     """CAT-09/CAT-20: all listing filters. Sub-categories OR together; other groups AND."""
     qs = base if base is not None else products_qs()
     q = request.query_params
-    if cat := q.get("category"):
-        qs = qs.filter(category__slug=cat)
+    if (cats := _csv(request, "category")) and not skip_cat:  # one slug, or several on
+        qs = qs.filter(category__slug__in=cats)               # Offers/New/Search (CAT-20)
     if (subs := _csv(request, "sub")) and not skip_sub:
         qs = qs.filter(subcategory__slug__in=subs, subcategory__is_active=True)
     if sizes := _csv(request, "size"):
@@ -128,14 +128,22 @@ def facets(request) -> dict:
     scoped = filtered(request, skip_sub=True)
     ids = scoped.values("id")
     subs = []
-    if cat := request.query_params.get("category"):
-        rows = (SubCategory.objects.filter(category__slug=cat, is_active=True)
+    cats = _csv(request, "category")
+    if len(cats) == 1:  # a single category page: sub-categories replace the category list
+        rows = (SubCategory.objects.filter(category__slug=cats[0], is_active=True)
                 .annotate(n=Count("products", filter=Q(products__in=ids))))
         subs = [{"name": s.name, "slug": s.slug, "count": s.n} for s in rows]
     var = Variant.objects.filter(product__in=ids, is_active=True)
     price = Product.objects.filter(pk__in=ids).aggregate(lo=Min("price"), hi=Max("price"))
+    categories = []
+    if len(cats) != 1:  # Offers / New arrivals / Search span categories (CAT-20)
+        across = filtered(request, skip_cat=True)
+        categories = [{"name": n, "slug": s, "count": c} for n, s, c in
+                      across.values_list("category__name", "category__slug")
+                      .annotate(c=Count("id", distinct=True)).order_by("category__sort")]
     return {
         "subcategories": subs,
+        "categories": categories,
         "sizes": sorted({s for s in var.values_list("size_label", flat=True) if s}),
         "colours": [{"name": n, "hex": h} for n, h in
                     var.exclude(color_name="").order_by("color_name")
