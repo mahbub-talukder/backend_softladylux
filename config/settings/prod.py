@@ -1,0 +1,12 @@
+from .base import *  # noqa: F401,F403
+
+# SRS §9 Security: HTTPS only, HSTS, secure/HTTP-only/SameSite cookies.
+DEBUG = False
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SESSION_COOKIE_SECURE = env.bool("COOKIE_SECURE", default=True)  # noqa: F405
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+AUTH_COOKIE_SECURE = SESSION_COOKIE_SECURE
+SESSION_COOKIE_SAMESITE = "Lax"
+SECURE_HSTS_SECONDS = env.int("HSTS_SECONDS", default=31536000)  # noqa: F405
+SECURE_SSL_REDIRECT = env.bool("SSL_REDIRECT", default=True)  # noqa: F405
+SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/$"]
