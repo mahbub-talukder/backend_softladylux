@@ -80,3 +80,21 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     def __str__(self):
         return self.full_name or self.email or self.phone or f"user-{self.pk}"
+
+
+class StaffPermission(TimeStampedModel):
+    """SRS §6 accounts_staffpermission, PRM-01.
+
+    One row per permission code granted to a Staff user. The Owner implicitly holds every
+    code (PRM-06) so never has rows. Checked from the DB on every request (PRM-03)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="permission_rows")
+    code = models.CharField(max_length=40)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "code"], name="uniq_user_permission")
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.code}"
