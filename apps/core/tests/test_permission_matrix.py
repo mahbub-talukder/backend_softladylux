@@ -96,3 +96,11 @@ def test_owner_only_endpoints_refuse_staff_even_with_every_code(as_user, make_st
 
 def test_unauthenticated_admin_gets_401_or_403(api_client):
     assert api_client.get(f"{A}/settings/").status_code in (401, 403)
+
+
+@pytest.mark.parametrize("method,path", [
+    ("get", "/contact-messages/"), ("get", "/newsletter/"), ("get", "/newsletter/export/"),
+])
+def test_contact_endpoints_matrix(as_user, make_staff, method, path):  # §2.2 contact.manage
+    assert getattr(as_user(make_staff("orders.view")), method)(f"{A}{path}").status_code == 403
+    assert getattr(as_user(make_staff("contact.manage")), method)(f"{A}{path}").status_code == 200

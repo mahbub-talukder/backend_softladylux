@@ -77,6 +77,19 @@ class Coupon(TimeStampedModel):
         return self.code
 
 
+class WishlistItem(TimeStampedModel):
+    """SRS §6 shop_wishlistitem, ACC-07: stored in the database for logged-in customers."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name="wishlist")
+    product = models.ForeignKey("catalog.Product", on_delete=models.CASCADE, related_name="+")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "product"],
+                                               name="uniq_wishlist_user_product")]
+
+
 class OrderSequence(models.Model):
     """CHK-08: one row per day (Asia/Dhaka) holding the last used sequence number."""
 

@@ -1,0 +1,6 @@
+New contact message
+
+From: {{ m.name }} <{{ m.email }}>{% if m.phone %} · {{ m.phone }}{% endif %}
+Subject: {{ m.subject|default:"(none)" }}
+
+{{ m.message }}

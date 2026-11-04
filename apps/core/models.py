@@ -90,6 +90,12 @@ class SiteSettings(SingletonModel):
     # ACC-02 SMS provider credentials. Env wins if set; never returned by any API (write-only).
     mimsms_api_key = models.CharField(max_length=200, blank=True)
     mimsms_sender_id = models.CharField(max_length=40, blank=True)
+    # The MiMSMS HTTP API details are not in the SRS, so endpoint, method and parameter names are
+    # configured here (or in env) instead of being guessed (decision: configurable endpoint).
+    mimsms_endpoint = models.URLField(blank=True)
+    mimsms_method = models.CharField(max_length=4, blank=True, default="POST")
+    mimsms_params = models.JSONField(default=dict, blank=True)  # {"api_key": "...", "sender": ...}
+    mimsms_success_contains = models.CharField(max_length=80, blank=True)
 
     class Meta:
         verbose_name_plural = "site settings"
@@ -247,3 +253,29 @@ class AuditLog(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class ContactMessage(TimeStampedModel):
+    """SRS §6 core_contactmessage, NTF-01: stored, emailed to the support email, marked handled."""
+
+    name = models.CharField(max_length=120)
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField()
+    subject = models.CharField(max_length=150, blank=True)
+    message = models.TextField(max_length=3000)
+    is_handled = models.BooleanField(default=False)
+    handled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class Subscriber(TimeStampedModel):
+    """SRS §6 core_subscriber, NTF-04: newsletter sign-up (footer); export to CSV."""
+
+    email = models.EmailField(unique=True)
+    subscribed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-subscribed_at", "-id"]

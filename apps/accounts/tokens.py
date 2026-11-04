@@ -8,6 +8,7 @@ def set_auth_cookies(response, user, remember: bool = True):
     Issue access + refresh JWTs as HTTP-only cookies. Without `remember`, cookies are
     session cookies (cleared when the browser closes), per ACC-03."""
     refresh = RefreshToken.for_user(user)
+    refresh["tv"] = user.token_version  # ACC-11: lets a password reset end every older session
     common = {
         "httponly": True,
         "secure": settings.AUTH_COOKIE_SECURE,

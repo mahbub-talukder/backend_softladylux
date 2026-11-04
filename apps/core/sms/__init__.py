@@ -3,12 +3,12 @@ from django.core.exceptions import ImproperlyConfigured
 
 from .base import SmsError, SmsProvider
 from .fake import FakeSmsProvider
+from .mimsms import MiMsmsProvider
 
-__all__ = ["SmsError", "SmsProvider", "FakeSmsProvider", "get_sms_provider"]
+__all__ = ["SmsError", "SmsProvider", "FakeSmsProvider", "MiMsmsProvider", "get_sms_provider"]
 
 # SRS ACC-02 / §15: provider chosen by SMS_PROVIDER.
-# The MiMSMS provider (non-masking API) registers here in M4, behind the same interface.
-PROVIDERS: dict[str, type[SmsProvider]] = {"fake": FakeSmsProvider}
+PROVIDERS: dict[str, type[SmsProvider]] = {"fake": FakeSmsProvider, "mimsms": MiMsmsProvider}
 
 
 def get_sms_provider() -> SmsProvider:

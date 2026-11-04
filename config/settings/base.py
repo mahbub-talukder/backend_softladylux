@@ -151,6 +151,11 @@ Q_CLUSTER = {
 SMS_PROVIDER = env("SMS_PROVIDER", default="fake")
 MIMSMS_API_KEY = env("MIMSMS_API_KEY", default="")
 MIMSMS_SENDER_ID = env("MIMSMS_SENDER_ID", default="")
+# MiMSMS HTTP API details are configuration, never guessed (see apps/core/sms/mimsms.py).
+MIMSMS_ENDPOINT = env("MIMSMS_ENDPOINT", default="")
+MIMSMS_METHOD = env("MIMSMS_METHOD", default="")
+MIMSMS_PARAMS = env("MIMSMS_PARAMS", default="")  # JSON map of parameter names
+MIMSMS_SUCCESS_CONTAINS = env("MIMSMS_SUCCESS_CONTAINS", default="")
 
 LOGGING = {
     "version": 1,

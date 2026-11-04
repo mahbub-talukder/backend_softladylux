@@ -99,6 +99,8 @@ class AdminRefreshView(APIView):
             token = RefreshToken(raw)
             user = User.objects.get(pk=token["user_id"], is_active=True,
                                     role__in=[Role.OWNER, Role.STAFF])
+            if token.get("tv", 0) != user.token_version:
+                raise TokenError("session ended")
         except (TokenError, User.DoesNotExist, TypeError, KeyError):
             return clear_auth_cookies(Response(
                 {"code": "not_authenticated", "message": "Please sign in again.", "fields": {}},

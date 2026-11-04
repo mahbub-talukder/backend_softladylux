@@ -4,6 +4,7 @@ from rest_framework.routers import SimpleRouter
 from apps.accounts import views_admin as acc
 
 from . import views_admin as v
+from . import views_engagement as eng
 
 router = SimpleRouter()
 router.register("users", acc.UserViewSet, basename="admin-user")
@@ -13,6 +14,7 @@ router.register("website/banners", v.BannerViewSet, basename="admin-banner")
 router.register("website/videos", v.VideoViewSet, basename="admin-video")
 router.register("website/announcements", v.AnnouncementViewSet, basename="admin-announcement")
 router.register("website/trust", v.TrustItemViewSet, basename="admin-trust")
+router.register("contact-messages", eng.ContactMessageViewSet, basename="admin-contact-message")
 router.register("website/pages", v.PageViewSet, basename="admin-page")
 
 # SRS §7 admin list. Every view declares its permission (PRM-03).
@@ -26,6 +28,8 @@ urlpatterns = [
     path("theme/", v.AdminThemeView.as_view(), name="admin-theme"),
     path("theme/reset/", v.ThemeResetView.as_view(), name="admin-theme-reset"),
     path("media/", v.MediaUploadView.as_view(), name="admin-media"),
+    path("newsletter/", eng.SubscriberListView.as_view(), name="admin-newsletter"),
+    path("newsletter/export/", eng.SubscriberExportView.as_view(), name="admin-newsletter-export"),
     path("audit-log/", v.AuditLogView.as_view(), name="admin-audit-log"),
     path("", include(router.urls)),
 ]

@@ -25,7 +25,10 @@ class CookieJWTAuthentication(JWTAuthentication):
         validated = self.get_validated_token(raw)
         if from_cookie:
             self._enforce_csrf(request)
-        return self.get_user(validated), validated
+        user = self.get_user(validated)
+        if validated.get("tv", 0) != user.token_version:  # ACC-11 / PRM-07: session was ended
+            raise exceptions.AuthenticationFailed("Please sign in again.")
+        return user, validated
 
     @staticmethod
     def _enforce_csrf(request):

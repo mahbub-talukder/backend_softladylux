@@ -1,0 +1,3 @@
+Welcome to {{ site.company_name }}!
+
+Thank you for joining our inner circle. We will let you know about new collections and private offers.
