@@ -27,8 +27,9 @@ def test_every_admin_view_declares_a_permission():  # PRM-03
         if cls.__name__ in OPEN_VIEWS:
             continue
         seen += 1
-        assert any(issubclass(pc, (IsStaffUser, IsOwner)) for pc in cls.permission_classes), (
-            f"{route} has no staff permission")
+        per_action = "get_permissions" in vars(cls)  # e.g. OrderViewSet picks a code per action
+        assert per_action or any(issubclass(pc, (IsStaffUser, IsOwner))
+                                 for pc in cls.permission_classes), f"{route} has no staff permission"
     assert seen > 15
 
 
@@ -48,13 +49,21 @@ MATRIX = [
     ("get", "/products/", "products.view"),
     ("get", "/products/export/", "products.view"),
     ("get", "/size-charts/", "products.view"),
+    ("get", "/orders/", "orders.view"),
+    ("post", "/orders/bulk-transition/", "orders.manage"),
+    ("get", "/inventory/", "inventory.view"),
+    ("get", "/inventory/movements/", "inventory.view"),
+    ("get", "/inventory/export/", "inventory.view"),
+    ("post", "/inventory/adjust/", "inventory.adjust"),
+    ("get", "/coupons/", "coupons.manage"),
+    ("post", "/coupons/", "coupons.manage"),
     ("post", "/media/", "website.manage"),
 ]
 
 
 @pytest.mark.parametrize("method,path,code", MATRIX)
 def test_matrix_granted_vs_denied(as_user, make_staff, method, path, code):
-    other = "orders.view"
+    other = "reports.view" if code == "theme.manage" else "theme.manage"  # unrelated, no implication
     denied = getattr(as_user(make_staff(other)), method)(f"{A}{path}", format="json")
     assert denied.status_code == 403
     allowed = getattr(as_user(make_staff(code)), method)(f"{A}{path}", format="json")

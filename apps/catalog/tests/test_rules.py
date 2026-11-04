@@ -119,5 +119,12 @@ def test_movement_never_below_zero_and_immutable(db, owner):  # rule 9, rule 11
         m.delete()
 
 
-def test_product_without_orders_hook(db):  # CAT-14 (orders arrive in M3)
-    assert product().has_orders() is False
+def test_has_orders_reflects_order_items(db):  # CAT-14
+    from apps.shop.checkout import place_order
+    from apps.shop.tests.helpers import configure_site, payload
+
+    configure_site()
+    p = product()
+    assert p.has_orders() is False
+    place_order(payload(p.variants.get()))
+    assert p.has_orders() is True

@@ -20,6 +20,7 @@ class Conflict(APIException):
 
     def __init__(self, message=None, code=None, fields=None):
         super().__init__(message, code)
+        self.code = code or self.default_code
         self.fields = fields or {}
 
 
@@ -41,7 +42,7 @@ def api_exception_handler(exc, context):
             {"code": "validation_error", "message": message, "fields": fields},
             status=response.status_code,
         )
-    code = getattr(exc, "default_code", "error")
+    code = getattr(exc, "code", None) or getattr(exc, "default_code", "error")
     message = str(getattr(exc, "detail", "Error"))
     fields = getattr(exc, "fields", {})
     return Response({"code": code, "message": message, "fields": fields},

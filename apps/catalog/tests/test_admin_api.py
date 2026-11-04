@@ -174,6 +174,18 @@ def test_list_filters_and_row_shape(admin):
     assert admin.get(f"{A}/products/{p.id}/").data["name"] == "Alpha"
 
 
+def test_ordered_product_is_only_deactivated_never_deleted(admin):  # CAT-14
+    from apps.shop.checkout import place_order
+    from apps.shop.tests.helpers import configure_site, payload
+
+    configure_site()
+    p = product("Ordered")
+    place_order(payload(p.variants.get()))
+    assert admin.delete(f"{A}/products/{p.id}/").status_code == 204
+    p.refresh_from_db()
+    assert p.is_active is False and Product.objects.filter(pk=p.pk).exists()
+
+
 def test_delete_deactivates_when_stock_history_else_deletes(admin):  # CAT-14
     a = admin.post(f"{A}/products/", body(variants=[{"on_hand": 3}]), format="json").data
     assert admin.delete(f"{A}/products/{a['id']}/").status_code == 204

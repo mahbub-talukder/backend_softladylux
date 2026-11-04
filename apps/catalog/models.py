@@ -104,8 +104,10 @@ class Product(TimeStampedModel):
         return self.discount_pct > 0 or self.is_offer
 
     def has_orders(self) -> bool:
-        """CAT-14 hook: orders arrive in M3; until then nothing has been ordered."""
-        return False
+        """CAT-14: a product that appears on any order is only ever deactivated, never deleted."""
+        from apps.shop.models import OrderItem
+
+        return OrderItem.objects.filter(variant__product=self).exists()
 
 
 class ProductImage(TimeStampedModel):

@@ -108,7 +108,10 @@ def _release_coupon(order):
 @transaction.atomic
 def transition(order_id, to, user=None, reason="", note="", courier="", tracking="") -> Order:
     order = _lock_order(order_id)
-    to = S(to)
+    try:
+        to = S(to)
+    except ValueError:
+        raise ValidationError({"to": "Unknown order status."}) from None
     frm = S(order.status)
     if to not in ALLOWED[frm]:
         if frm == S.DELIVERED:  # ORD-11: read-only except Return
