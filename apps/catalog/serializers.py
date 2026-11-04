@@ -266,7 +266,52 @@ class SizeChartSerializer(serializers.ModelSerializer):
         model = SizeChart
         fields = ["id", "name", "type", "rows"]
 
-    def validate_rows(self, v):
-        if not isinstance(v, dict):
-            raise serializers.ValidationError("rows must be an object.")
-        return v
+    def validate(self, data):
+        """CAT-08: the public calculator reads these rows, so the shape is enforced per type."""
+        rows = data.get("rows")
+        kind = self.instance.type if self.instance else data.get("type")
+        if rows is None:
+            return data
+        if not isinstance(rows, dict):
+            raise serializers.ValidationError({"rows": "rows must be an object."})
+
+        def rng(r, lo, hi, what):
+            ok = (isinstance(r.get(lo), int | float) and isinstance(r.get(hi), int | float)
+                  and 0 < r[lo] <= r[hi])
+            if not ok:
+                raise serializers.ValidationError(
+                    {"rows": f"{what}: enter numbers with min ≤ max."})
+
+        def pair(v, what):
+            if not (isinstance(v, list) and len(v) == 2 and all(isinstance(x, int | float)
+                                                                 for x in v) and 0 < v[0] <= v[1]):
+                raise serializers.ValidationError({"rows": f"{what}: enter a from–to range."})
+
+        if kind == "bra":
+            bands, cups = rows.get("bands"), rows.get("cups")
+            if not isinstance(bands, list) or not isinstance(cups, list) or not bands or not cups:
+                raise serializers.ValidationError({"rows": "Add at least one band and one cup."})
+            for b in bands:
+                if not isinstance(b.get("size"), int):
+                    raise serializers.ValidationError({"rows": "Band sizes must be whole numbers."})
+                rng(b, "min", "max", f"Band {b.get('size')}")
+            for c in cups:
+                if not str(c.get("cup", "")).strip():
+                    raise serializers.ValidationError({"rows": "Every cup needs a letter."})
+                rng(c, "min", "max", f"Cup {c.get('cup')}")
+            if [c["max"] for c in cups] != sorted(c["max"] for c in cups):
+                raise serializers.ValidationError(
+                    {"rows": "Cups must be ordered smallest to largest."})
+        elif kind in ("apparel", "panty"):
+            items = rows.get("rows")
+            if not isinstance(items, list) or not items:
+                raise serializers.ValidationError({"rows": "Add at least one size."})
+            for r in items:
+                if not str(r.get("size", "")).strip():
+                    raise serializers.ValidationError({"rows": "Every row needs a size label."})
+                for k in ("bust", "waist", "hip"):
+                    pair(r.get(k), f"Size {r.get('size')} {k}")
+            if [r["hip"][1] for r in items] != sorted(r["hip"][1] for r in items):
+                raise serializers.ValidationError(
+                    {"rows": "Sizes must be ordered smallest to largest."})
+        return data

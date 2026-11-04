@@ -270,9 +270,11 @@ def test_deleting_last_image_unpublishes(admin):  # CAT-04
 def test_size_chart_admin(admin):  # CAT-08
     chart = admin.get(f"{A}/size-charts/").data[0]
     assert admin.get(f"{A}/size-charts/{chart['id']}/").status_code == 200
-    r = admin.patch(f"{A}/size-charts/{chart['id']}/", {"rows": {"bands": []}}, format="json")
-    assert r.status_code == 200 and r.data["rows"] == {"bands": []}
     assert admin.patch(f"{A}/size-charts/{chart['id']}/", {"rows": [1]}, format="json").status_code == 400
+    ok = dict(chart["rows"])
+    ok["cups"] = ok["cups"][:3]
+    r = admin.patch(f"{A}/size-charts/{chart['id']}/", {"rows": ok}, format="json")
+    assert r.status_code == 200 and len(r.data["rows"]["cups"]) == 3
     assert admin.post(f"{A}/size-charts/", {}, format="json").status_code == 405
 
 
@@ -293,3 +295,32 @@ def test_put_full_update_product_and_category(admin):
     c = admin.put(f"{A}/categories/{tops.id}/", {"name": "Tops & Tees", "slug": "tops"},
                   format="json")
     assert c.status_code == 200 and c.data["name"] == "Tops & Tees"
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda r: r.update(bands=[]),
+    lambda r: r.update(cups=[{"cup": "", "min": 1, "max": 2}]),
+    lambda r: r["bands"].__setitem__(0, {"size": 32, "min": 90, "max": 80}),
+    lambda r: r["bands"].__setitem__(0, {"size": "x", "min": 1, "max": 2}),
+    lambda r: r.update(cups=[{"cup": "B", "min": 14, "max": 16}, {"cup": "A", "min": 11, "max": 13}]),
+])
+def test_bra_chart_shape_enforced(admin, mutate):  # CAT-08: a bad edit can't break the calculator
+    from apps.catalog.models import SizeChart
+
+    chart = SizeChart.objects.get(type="bra")
+    rows = {"bands": [dict(b) for b in chart.rows["bands"]], "cups": [dict(c) for c in chart.rows["cups"]]}
+    mutate(rows)
+    assert admin.patch(f"{A}/size-charts/{chart.id}/", {"rows": rows}, format="json").status_code == 400
+
+
+def test_apparel_chart_shape_enforced(admin):
+    from apps.catalog.models import SizeChart
+
+    chart = SizeChart.objects.get(type="apparel")
+    good = {"rows": [dict(r) for r in chart.rows["rows"]]}
+    assert admin.patch(f"{A}/size-charts/{chart.id}/", {"rows": good}, format="json").status_code == 200
+    for bad in ({"rows": []}, {"rows": [{"size": "", "bust": [1, 2], "waist": [1, 2], "hip": [1, 2]}]},
+                {"rows": [{"size": "S", "bust": [9, 2], "waist": [1, 2], "hip": [1, 2]}]},
+                {"rows": [{"size": "S", "bust": [1, 2], "waist": [1, 2], "hip": [100, 110]},
+                          {"size": "M", "bust": [1, 2], "waist": [1, 2], "hip": [90, 99]}]}):
+        assert admin.patch(f"{A}/size-charts/{chart.id}/", {"rows": bad}, format="json").status_code == 400
