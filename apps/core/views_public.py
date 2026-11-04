@@ -96,7 +96,8 @@ class HomeView(PublicView):
                 "signature": _cards(Q(is_signature=True), 6) if on["signature"] else [],
                 "offers": (_cards(services.offers_q(), 8) if on["offers"] else []),
                 "trust": TrustItemSerializer(
-                    TrustItem.objects.filter(is_active=True), many=True).data if on["trust"] else [],
+                    TrustItem.objects.filter(is_active=True),
+                    many=True).data if on["trust"] else [],
                 "videos": VideoSerializer(
                     Video.objects.filter(is_active=True), many=True).data if on["videos"] else [],
             }
