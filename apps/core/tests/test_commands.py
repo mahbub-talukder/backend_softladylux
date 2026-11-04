@@ -95,7 +95,12 @@ def test_seed_demo_creates_catalogue_photos_content(demo):
     assert p.images.count() == 2 and p.images.first().media.width >= 600  # §10 photo size
     assert all(v.on_hand == 12 for v in p.variants.all())
     assert p.variants.first().movements.filter(reason="opening_stock").exists()  # INV-08
-    assert CarouselSlide.objects.count() == 2
+    assert CarouselSlide.objects.count() == 2 and not any(
+        "[demo]" in s.heading for s in CarouselSlide.objects.all())
+    from apps.core.models import TrustItem
+
+    assert list(TrustItem.objects.values_list("title", flat=True)) == [
+        "Comfort-first fabrics", "Find your size", "bKash & Nagad", "Track every order"]
     assert Banner.objects.filter(is_active=True).count() == 2
     assert Coupon.objects.filter(code="WELCOME10").exists()
     assert SiteSettings.load().address_line1 == "[STORE ADDRESS]"  # marked placeholder

@@ -26,11 +26,11 @@ SUBS = {"bras": ["Maternity Bra", "Air Bra", "Tube Bra"]}
 PRODUCTS = [
     ("Silk-Touch Plunge Bra", "bras", "air-bra", "2450", None, dict(is_new=True), ["34B", "36C"], ["Nude", "Black"]),
     ("Contour Balconette Bra", "bras", "tube-bra", "2750", "3450", dict(is_offer=True), ["34B", "36B"], ["Rose"]),
-    ("Wireless Comfort Bralette", "bras", "maternity-bra", "1990", "2490", dict(), ["S", "M"], ["Nude", "Rose"]),
-    ("Seamless Brief", "panties", None, "690", None, dict(), ["S", "M", "L"], ["Nude", "Black"]),
-    ("Lace Bralette & Brief Set", "lingerie-sets", None, "3290", None, dict(is_signature=True), ["S", "M"], ["Rosewood"]),
-    ("Sculpt Shaper", "shapewear", None, "2190", None, dict(), ["M", "L"], ["Nude"]),
-    ("Satin Sleep Shirt", "sleepwear", None, "2890", "3290", dict(is_offer=True), ["S", "M", "L"], ["Ivory"]),
+    ("Wireless Comfort Bralette", "bras", "maternity-bra", "1990", "2490", dict(is_offer=True, is_signature=True), ["S", "M"], ["Nude", "Rose"]),
+    ("Seamless Brief", "panties", None, "690", None, dict(is_new=True), ["S", "M", "L"], ["Nude", "Black"]),
+    ("Lace Bralette & Brief Set", "lingerie-sets", None, "3290", None, dict(is_signature=True, is_new=True), ["S", "M"], ["Rosewood"]),
+    ("Sculpt Shaper", "shapewear", None, "2190", "2690", dict(is_signature=True, is_offer=True), ["M", "L"], ["Nude"]),
+    ("Satin Sleep Shirt", "sleepwear", None, "2890", "3290", dict(is_offer=True, is_signature=True), ["S", "M", "L"], ["Ivory"]),
     ("Linen Wrap Top", "tops", None, "1590", None, dict(is_new=True), ["S", "M", "L"], ["Sand"]),
 ]
 COLOURS = {"Nude": "#D9B8A4", "Black": "#231E1C", "Rose": "#C98A9A", "Rosewood": "#8C5550",
@@ -96,9 +96,14 @@ def placeholder(label: str, tone: tuple[int, int, int], size=(900, 1200), kind: 
     d = ImageDraw.Draw(img)
     if kind and size == (900, 1200):
         _garment(d, kind, size[0] // 2, _mix(tone, (0, 0, 0), 0.35), _mix(tone, (255, 255, 255), 0.45), 6)
-    else:  # wide banners / slides: soft bands instead of a garment
-        d.rectangle([0, int(size[1] * 0.62), size[0], size[1]], fill=_mix(tone, (255, 255, 255), 0.55))
-    d.text((40, size[1] - 70), label[:48], fill=_mix(tone, (0, 0, 0), 0.5))
+    elif kind:  # wide banners / slides: the same drawing, centred on the tinted panel
+        art = Image.new("RGB", (900, 1200), img.getpixel((0, 0)))
+        _garment(ImageDraw.Draw(art), kind, 450, _mix(tone, (0, 0, 0), 0.35), _mix(tone, (255, 255, 255), 0.45), 6)
+        side = int(size[1] * 0.78)
+        art = art.resize((int(900 * side / 1200), side))
+        img.paste(art, ((size[0] - art.width) // 2, (size[1] - side) // 2))
+    if size == (900, 1200):
+        d.text((40, size[1] - 70), label[:48], fill=_mix(tone, (0, 0, 0), 0.5))
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return ContentFile(buf.getvalue())
@@ -165,9 +170,11 @@ class Command(BaseCommand):
         for i, (name, cslug, sslug, price, compare, flags, sizes, colours) in enumerate(PRODUCTS):
             existing = Product.objects.filter(name=name, collection="Demo").first()
             if existing or Product.objects.filter(name=name).exists():
-                if existing and not existing.is_active:  # re-seeding after --reset brings it back
+                if existing:  # re-seeding brings hidden demo products back and refreshes their flags
+                    for k in ("is_new", "is_signature", "is_offer"):
+                        setattr(existing, k, flags.get(k, False))
                     existing.is_active = True
-                    existing.save(update_fields=["is_active", "updated_at"])
+                    existing.save()
                 continue
             cat = Category.objects.get(slug=cslug)
             sub = SubCategory.objects.filter(category=cat, slug=sslug).first() if sslug else None
@@ -190,32 +197,46 @@ class Command(BaseCommand):
                         "color_hex": COLOURS.get(colour, ""), "on_hand": 12})
             created += 1
         self._content()
+        self._trust()
         self._settings()
         return created
 
     def _content(self):
-        if not CarouselSlide.objects.filter(heading__startswith=TAG).exists():
+        if not CarouselSlide.objects.filter(media__alt_text__startswith=TAG).exists():
             for i, (eyebrow, heading) in enumerate([("New season", "Quiet luxury, worn close"),
                                                     ("Signature", "The lace edit")]):
-                media = self._media(f"slide {i + 1}", (120 + 30 * i, 90, 100), "carousel",
-                                    (1600, 900))
+                media = self._media(f"slide {i + 1}", (190, 150, 120), "carousel", (1600, 900),
+                                    art=("bra", "gown")[i])
                 CarouselSlide.objects.create(
-                    media=media, eyebrow=eyebrow, heading=f"{TAG} {heading}",
+                    media=media, eyebrow=eyebrow, heading=heading,
                     button_label="Shop now", link_type="url", link_value="/shop/new", sort=i)
         for placement, text in (("home_promo", "New arrivals"), ("home_offer", "Offers")):
             b = Banner.objects.get(placement=placement)
             if b.media_id is None:
-                b.media = self._media(text, (140, 100, 110), "banner", (1200, 600))
-                b.heading, b.text, b.link, b.is_active = f"{TAG} {text}", "Sample banner", "/", True
+                b.media = self._media(text, (200, 150, 140), "banner", (1200, 600), art="set")
+                b.heading, b.text, b.link, b.is_active = text, "Sample banner", "/shop/offers", True
                 b.save()
         if not Coupon.objects.filter(code="WELCOME10").exists():
             Coupon.objects.create(code="WELCOME10", description="Demo: 10% off", type="percent",
                                   value=Decimal(10), min_subtotal=Decimal(0))
 
+    def _trust(self):
+        """The four trust-strip items of the design (client copy: edit them in Admin → Website)."""
+        from apps.core.models import TrustItem
+
+        rows = [("shield", "Comfort-first fabrics", "Soft, breathable, skin-kind"),
+                ("ruler", "Find your size", "Calculator and size chart"),
+                ("phone", "bKash & Nagad", "Simple mobile payment"),
+                ("truck", "Track every order", "From confirmed to delivered")]
+        # replace the three untouched migration defaults, never anything the owner has written
+        TrustItem.objects.filter(title__in=["Easy returns", "Secure payments", "Fast delivery"]).delete()
+        for i, (icon, title, text) in enumerate(rows):
+            TrustItem.objects.get_or_create(title=title, defaults={"icon": icon, "text": text, "sort": i})
+
     def _settings(self):
         """Only fills what is still empty; every value is an obvious placeholder."""
         s = SiteSettings.load()
-        defaults = {"tagline": "Quiet luxury, worn close [demo]",
+        defaults = {"tagline": "Fashion & Intimates",
                     "address_line1": "[STORE ADDRESS]", "city": "[CITY]",
                     "working_hours": "[SUPPORT HOURS]", "footer_about": "[ABOUT TEXT: demo content]"}
         for field, value in defaults.items():
@@ -228,8 +249,8 @@ class Command(BaseCommand):
         # Stock movements are immutable and never deleted (INV-08), so demo products that received
         # opening stock cannot be deleted either: they are hidden from the storefront instead.
         Product.objects.filter(collection="Demo").update(is_active=False)
-        CarouselSlide.objects.filter(heading__startswith=TAG).delete()
-        for b in Banner.objects.filter(heading__startswith=TAG):
+        CarouselSlide.objects.filter(media__alt_text__startswith=TAG).delete()
+        for b in Banner.objects.filter(media__alt_text__startswith=TAG):
             b.media, b.heading, b.text, b.link, b.is_active = None, "", "", "", False
             b.save()
         Coupon.objects.filter(code="WELCOME10", description="Demo: 10% off").delete()
