@@ -13,6 +13,7 @@ from apps.accounts.permissions import IsOwner, require
 
 from . import audit, cache, theme
 from .models import (
+    HOME_SECTIONS,
     Announcement,
     AuditLog,
     Banner,
@@ -56,6 +57,36 @@ class AdminSettingsView(APIView):
         keep = {k: (before.get(k), after.get(k)) for k in after if before.get(k) != after.get(k)}
         audit.log(request, "update", "SiteSettings", obj.pk,
                   {k: v[0] for k, v in keep.items()}, {k: v[1] for k, v in keep.items()})
+        cache.invalidate()
+        return Response(after)
+
+
+class HomeSectionsView(APIView):
+    """WEB-06: switch home sections on or off (`website.manage`). Saved on the settings row,
+    audited, and the public cache is cleared so the change shows within the minute."""
+
+    permission_classes = [require("website.manage")]
+
+    @staticmethod
+    def _state(obj):
+        return [{"key": k, "label": label, "on": bool(obj.home_sections.get(k, True))}
+                for k, label in HOME_SECTIONS]
+
+    def get(self, request):
+        return Response(self._state(SiteSettings.load()))
+
+    def put(self, request):
+        obj = SiteSettings.load()
+        before = self._state(obj)
+        sent = request.data if isinstance(request.data, dict) else {}
+        keys = {k for k, _ in HOME_SECTIONS}
+        if not set(sent) <= keys or not all(isinstance(v, bool) for v in sent.values()):
+            raise serializers.ValidationError(
+                {"detail": "Send {section: true|false} for known sections."})
+        obj.home_sections = {**obj.home_sections, **sent}
+        obj.save(update_fields=["home_sections"])
+        after = self._state(obj)
+        audit.log(request, "update", "HomeSections", obj.pk, before, after)
         cache.invalidate()
         return Response(after)
 

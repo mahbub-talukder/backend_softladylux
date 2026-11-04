@@ -13,6 +13,8 @@ router.register("coupons", v.CouponViewSet, basename="admin-coupon")
 # (list, adjust/, movements/), coupons/.
 urlpatterns = [
     path("inventory/", inv.StockListView.as_view(), name="admin-inventory"),
+    path("inventory/by-category/", inv.StockByCategoryView.as_view(),
+         name="admin-inventory-by-category"),
     path("inventory/adjust/", inv.AdjustView.as_view(), name="admin-inventory-adjust"),
     path("inventory/movements/", inv.MovementListView.as_view(), name="admin-inventory-movements"),
     path("inventory/export/", inv.StockExportView.as_view(), name="admin-inventory-export"),

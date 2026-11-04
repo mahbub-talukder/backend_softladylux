@@ -148,3 +148,17 @@ def test_audit_masks_ip(as_user, owner):  # §9 privacy
     c = as_user(owner)
     c.patch(f"{A}/settings/", {"tagline": "x"}, format="json", REMOTE_ADDR="203.0.113.77")
     assert AuditLog.objects.first().ip_masked == "203.0.113.0"
+
+
+def test_home_sections_switch_skips_queries_and_audits(as_user, owner, api_client):  # WEB-06
+    c = as_user(owner)
+    rows = c.get(f"{A}/website/home-sections/").data
+    assert [r["key"] for r in rows][:2] == ["carousel", "trust"] and all(r["on"] for r in rows)
+    r = c.put(f"{A}/website/home-sections/", {"videos": False, "offers": False}, format="json")
+    assert r.status_code == 200 and {x["key"]: x["on"] for x in r.data}["videos"] is False
+    home = api_client.get("/api/v1/home/").data  # cache was cleared by the save
+    assert home["sections"]["videos"] is False and home["videos"] == [] and home["offers"] == []
+    assert home["sections"]["carousel"] is True
+    assert c.put(f"{A}/website/home-sections/", {"nope": True}, format="json").status_code == 400
+    assert c.put(f"{A}/website/home-sections/", {"videos": "yes"}, format="json").status_code == 400
+    assert c.get(f"{A}/audit-log/").data["count"] >= 1

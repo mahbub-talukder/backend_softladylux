@@ -10,6 +10,7 @@ from apps.catalog import services
 
 from .cache import cached
 from .models import (
+    HOME_SECTIONS,
     Announcement,
     Banner,
     CarouselSlide,
@@ -77,21 +78,27 @@ class HomeView(PublicView):
 
     def get(self, request):
         def build():
+            # WEB-06: a section switched off in admin is skipped here, not just hidden, so it costs
+            # nothing; the whole payload is cached (cache.invalidate runs on every admin save).
+            on = {k: SiteSettings.load().home_sections.get(k, True) for k, _ in HOME_SECTIONS}
             return {
+                "sections": on,
                 "announcements": AnnouncementSerializer(
                     Announcement.objects.filter(is_active=True), many=True).data,
                 "carousel": SlideSerializer(
                     CarouselSlide.objects.filter(is_active=True)[:8],  # WEB-01: max 8
-                    many=True).data,
+                    many=True).data if on["carousel"] else [],
                 "banners": BannerSerializer(
-                    Banner.objects.filter(is_active=True, media__isnull=False), many=True).data,
-                "categories": _categories(),
-                "new_arrivals": _cards(services.new_arrivals_q(), 8),
-                "signature": _cards(Q(is_signature=True), 6),
-                "offers": _cards(services.offers_q(), 8),
+                    Banner.objects.filter(is_active=True, media__isnull=False),
+                    many=True).data if on["banners"] else [],
+                "categories": _categories() if on["categories"] else [],
+                "new_arrivals": _cards(services.new_arrivals_q(), 8) if on["new_arrivals"] else [],
+                "signature": _cards(Q(is_signature=True), 6) if on["signature"] else [],
+                "offers": (_cards(services.offers_q(), 8) if on["offers"] else []),
                 "trust": TrustItemSerializer(
-                    TrustItem.objects.filter(is_active=True), many=True).data,
-                "videos": VideoSerializer(Video.objects.filter(is_active=True), many=True).data,
+                    TrustItem.objects.filter(is_active=True), many=True).data if on["trust"] else [],
+                "videos": VideoSerializer(
+                    Video.objects.filter(is_active=True), many=True).data if on["videos"] else [],
             }
 
         return Response(cached("public:home", build))

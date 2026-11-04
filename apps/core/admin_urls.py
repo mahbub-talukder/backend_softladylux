@@ -28,6 +28,7 @@ urlpatterns = [
     path("theme/", v.AdminThemeView.as_view(), name="admin-theme"),
     path("theme/reset/", v.ThemeResetView.as_view(), name="admin-theme-reset"),
     path("media/", v.MediaUploadView.as_view(), name="admin-media"),
+    path("website/home-sections/", v.HomeSectionsView.as_view(), name="admin-home-sections"),
     path("newsletter/", eng.SubscriberListView.as_view(), name="admin-newsletter"),
     path("newsletter/export/", eng.SubscriberExportView.as_view(), name="admin-newsletter-export"),
     path("audit-log/", v.AuditLogView.as_view(), name="admin-audit-log"),

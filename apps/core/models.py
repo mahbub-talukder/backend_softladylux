@@ -32,9 +32,20 @@ class SingletonModel(TimeStampedModel):
         return obj
 
 
+HOME_SECTIONS = (
+    ("carousel", "Hero carousel"), ("trust", "Trust strip"), ("categories", "Category tiles"),
+    ("banners", "Promo banners"), ("new_arrivals", "New arrivals"),
+    ("signature", "Signature collection"), ("offers", "Offers and favourites"),
+    ("videos", "Video gallery"))
+
+
 class SiteSettings(SingletonModel):
     """SRS §6 core_sitesettings; SET-01..05, SET-09. Every company-specific value on the
     storefront comes from here (SET-08). Placeholders are shown until the owner fills them."""
+
+    # WEB-06: which home sections show. Keys missing = on. Read once with the cached home payload,
+    # and a section that is off is not queried at all, so a lean home page loads faster.
+    home_sections = models.JSONField(default=dict, blank=True)
 
     # SET-01 company
     company_name = models.CharField(max_length=120, default="SoftLadyLux")

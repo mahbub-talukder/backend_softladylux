@@ -3,7 +3,7 @@
 
 import csv
 
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import HttpResponse
 from rest_framework import serializers
 from rest_framework.generics import ListAPIView
@@ -78,6 +78,19 @@ class StockListView(ListAPIView):
             "low": base.filter(on_hand__gt=0, on_hand__lte=th).count(),
             "out": base.filter(on_hand=0).count(), "threshold": th}
         return resp
+
+
+class StockByCategoryView(APIView):
+    """INV-11 chart: units on hand per category (active variants of active products)."""
+
+    permission_classes = [require("inventory.view")]
+
+    def get(self, request):
+        rows = (Variant.objects.filter(is_active=True, product__is_active=True)
+                .values("product__category__name", "product__category__sort")
+                .annotate(units=Sum("on_hand")).order_by("product__category__sort"))
+        return Response([{"name": r["product__category__name"], "units": r["units"] or 0}
+                         for r in rows])
 
 
 class MovementSerializer(serializers.ModelSerializer):
