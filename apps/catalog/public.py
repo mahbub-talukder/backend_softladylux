@@ -78,7 +78,7 @@ def _csv(request, key):
     return [x.strip() for x in request.query_params.get(key, "").split(",") if x.strip()]
 
 
-def filtered(request, base=None, skip_sub=False, skip_cat=False):
+def filtered(request, base=None, skip_sub=False, skip_cat=False, skip_price=False):
     """CAT-09/CAT-20: all listing filters. Sub-categories OR together; other groups AND."""
     qs = base if base is not None else products_qs()
     q = request.query_params
@@ -95,10 +95,12 @@ def filtered(request, base=None, skip_sub=False, skip_cat=False):
         qs = qs.filter(cq)
     if cols := _csv(request, "collection"):
         qs = qs.filter(collection__in=cols)
-    if q.get("price_min"):
+    if q.get("price_min") and not skip_price:
         qs = qs.filter(price__gte=q["price_min"])
-    if q.get("price_max"):
+    if q.get("price_max") and not skip_price:
         qs = qs.filter(price__lte=q["price_max"])
+    if ids := [int(x) for x in _csv(request, "ids") if x.isdigit()][:60]:  # guest wishlist (ACC-07)
+        qs = qs.filter(pk__in=ids)
     if q.get("available") in ("1", "true"):
         qs = qs.filter(Exists(Variant.objects.filter(product=OuterRef("pk"), is_active=True,
                                                      on_hand__gt=0)))
@@ -137,7 +139,9 @@ def facets(request) -> dict:
                 .annotate(n=Count("products", filter=Q(products__in=ids))))
         subs = [{"name": s.name, "slug": s.slug, "count": s.n} for s in rows]
     var = Variant.objects.filter(product__in=ids, is_active=True)
-    price = Product.objects.filter(pk__in=ids).aggregate(lo=Min("price"), hi=Max("price"))
+    # The slider range must not shrink to the chosen price, or the slider jumps back (CAT-09).
+    unpriced = filtered(request, skip_sub=True, skip_price=True).values("id")
+    price = Product.objects.filter(pk__in=unpriced).aggregate(lo=Min("price"), hi=Max("price"))
     categories = []
     if len(cats) != 1:  # Offers / New arrivals / Search span categories (CAT-20)
         across = filtered(request, skip_cat=True)

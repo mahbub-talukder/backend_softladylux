@@ -165,3 +165,17 @@ def test_category_csv_and_cross_category_facet(api_client, bras):  # CAT-20
     assert cats == {"bras": 1, "panties": 1} and r.data["facets"]["subcategories"] == []
     only = api_client.get(P, {"category": "bras"}).data["facets"]
     assert only["categories"] == [] and len(only["subcategories"]) == 3
+
+
+def test_price_range_facet_ignores_price_filter(api_client, bras):  # slider must not shrink to its own value
+    base = {"category": "bras"}
+    full = api_client.get(P, base).json()["facets"]["price"]
+    capped = api_client.get(P, {**base, "price_max": "1000"}).json()["facets"]["price"]
+    assert capped == full
+
+
+def test_ids_filter_for_guest_wishlist(api_client, bras):  # ACC-07: guest list is shown from local ids
+    rows = api_client.get(P, {"category": "bras"}).json()["results"]
+    want = [rows[0]["id"], rows[1]["id"]]
+    got = api_client.get(P, {"ids": ",".join(map(str, want)), "page_size": 60}).json()["results"]
+    assert sorted(r["id"] for r in got) == sorted(want)
