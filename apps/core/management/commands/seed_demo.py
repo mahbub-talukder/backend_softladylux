@@ -37,14 +37,78 @@ COLOURS = {"Nude": "#D9B8A4", "Black": "#231E1C", "Rose": "#C98A9A", "Rosewood":
            "Ivory": "#EFE8DB", "Sand": "#CDB99A"}
 
 
-def placeholder(label: str, tone: tuple[int, int, int], size=(900, 1200)) -> ContentFile:
-    img = Image.new("RGB", size, tone)
+def _mix(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
+    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))  # type: ignore[return-value]
+
+
+def _hex(h: str, default=(140, 100, 100)) -> tuple[int, int, int]:
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) if len(h) == 6 else default  # type: ignore[return-value]
+
+
+# Which line drawing goes with which category (same idea as the design boards' placeholder art)
+KIND = {"bras": "bra", "panties": "panty", "lingerie-sets": "set", "shapewear": "shaper",
+        "sleepwear": "gown", "tops": "top", "accessories": "top", "gift-sets": "set"}
+
+
+def _garment(d: ImageDraw.ImageDraw, kind: str, cx: int, ink, fill, w: int):
+    """Simple garment outlines in a thin line, centred on x=cx (900x1200 canvas)."""
+    def bra(y):
+        for sx in (-1, 1):
+            d.pieslice([cx + sx * 150 - 150, y, cx + sx * 150 + 150, y + 300], 0, 180, fill=fill)
+            d.arc([cx + sx * 150 - 150, y, cx + sx * 150 + 150, y + 300], 0, 180, fill=ink, width=w)
+            d.line([cx + sx * 220, y + 150, cx + sx * 250, y - 230], fill=ink, width=w)  # strap
+        d.line([cx - 300, y + 150, cx + 300, y + 150], fill=ink, width=w)
+
+    def panty(y, s=1.0):
+        pts = [(cx - 300 * s, y), (cx + 300 * s, y), (cx + 70 * s, y + 300 * s), (cx - 70 * s, y + 300 * s)]
+        d.polygon(pts, fill=fill, outline=ink, width=w)
+        d.line([pts[0], pts[1]], fill=ink, width=w + 2)
+
+    if kind == "bra":
+        bra(500)
+    elif kind == "panty":
+        panty(450)
+    elif kind == "set":
+        bra(330)
+        panty(740, 0.75)
+    elif kind == "shaper":
+        pts = [(cx - 220, 280), (cx + 220, 280), (cx + 270, 640), (cx + 210, 940), (cx - 210, 940), (cx - 270, 640)]
+        d.polygon(pts, fill=fill, outline=ink, width=w)
+        d.line([cx - 160, 280, cx - 190, 150], fill=ink, width=w)
+        d.line([cx + 160, 280, cx + 190, 150], fill=ink, width=w)
+    elif kind == "gown":
+        pts = [(cx - 120, 200), (cx + 120, 200), (cx + 340, 420), (cx + 250, 480), (cx + 280, 1000),
+               (cx - 280, 1000), (cx - 250, 480), (cx - 340, 420)]
+        d.polygon(pts, fill=fill, outline=ink, width=w)
+        d.arc([cx - 90, 160, cx + 90, 300], 0, 180, fill=ink, width=w)
+    else:  # top
+        pts = [(cx - 130, 240), (cx + 130, 240), (cx + 360, 360), (cx + 280, 520), (cx + 210, 470),
+               (cx + 210, 860), (cx - 210, 860), (cx - 210, 470), (cx - 280, 520), (cx - 360, 360)]
+        d.polygon(pts, fill=fill, outline=ink, width=w)
+        d.arc([cx - 100, 190, cx + 100, 320], 0, 180, fill=ink, width=w)
+
+
+def placeholder(label: str, tone: tuple[int, int, int], size=(900, 1200), kind: str | None = None):
+    """A generated line drawing (no third-party images): a soft tone background, a thin garment
+    outline and the product label. Used for staging; the owner replaces them with real photos."""
+    img = Image.new("RGB", size, _mix(tone, (255, 255, 255), 0.72))
     d = ImageDraw.Draw(img)
-    d.rectangle([40, 40, size[0] - 40, size[1] - 40], outline=(255, 255, 255), width=4)
-    d.text((size[0] // 2 - 6 * len(label), size[1] // 2), label, fill=(255, 255, 255))
+    if kind and size == (900, 1200):
+        _garment(d, kind, size[0] // 2, _mix(tone, (0, 0, 0), 0.35), _mix(tone, (255, 255, 255), 0.45), 6)
+    else:  # wide banners / slides: soft bands instead of a garment
+        d.rectangle([0, int(size[1] * 0.62), size[0], size[1]], fill=_mix(tone, (255, 255, 255), 0.55))
+    d.text((40, size[1] - 70), label[:48], fill=_mix(tone, (0, 0, 0), 0.5))
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return ContentFile(buf.getvalue())
+
+
+def own_photos(folder, slug: str):
+    """Photos the owner supplied: files in `folder` whose name starts with the product slug."""
+    from pathlib import Path
+
+    return sorted(p for p in Path(folder).glob(f"{slug}*") if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"))
 
 
 class Command(BaseCommand):
@@ -53,10 +117,13 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--reset", action="store_true",
                             help="Hide demo products and remove the other demo content.")
+        parser.add_argument("--photos-dir", help="Folder of your own licensed photos: files named "
+                            "<product-slug>*.jpg|png|webp are used instead of generated drawings.")
         parser.add_argument("--i-know-this-is-not-production", action="store_true",
                             dest="override", help="Run even though DEBUG is off (staging).")
 
-    def handle(self, *args, reset, override, **opts):
+    def handle(self, *args, reset, override, photos_dir=None, **opts):
+        self.photos_dir = photos_dir
         if not settings.DEBUG and not override:
             raise CommandError(
                 "seed_demo is for staging only and refuses to run with DEBUG off. If this really "
@@ -71,10 +138,18 @@ class Command(BaseCommand):
         cache.invalidate()
 
     # ------------------------------------------------------------------ seed
-    def _media(self, label, tone, kind, size=(900, 1200)):
+    def _media(self, label, tone, kind, size=(900, 1200), art=None, upload=None):
+        """A MediaAsset from the owner's own file (`upload`) or a generated line drawing."""
+        if upload is not None:
+            with Image.open(upload) as im:
+                size = im.size
+            content = ContentFile(upload.read_bytes())
+            name = f"demo-{upload.stem}{upload.suffix.lower()}"
+        else:
+            content = placeholder(label, tone, size, art)
+            name = f"demo-{label.lower().replace(' ', '-')}.png"
         m = MediaAsset(kind=kind, alt_text=f"{TAG} {label}", width=size[0], height=size[1])
-        m.file.save(f"demo-{label.lower().replace(' ', '-')}.png", placeholder(label, tone, size),
-                    save=False)
+        m.file.save(name, content, save=False)
         m.save()
         return m
 
@@ -102,9 +177,11 @@ class Command(BaseCommand):
                 short_desc=f"{name}: sample product for staging review.",
                 description="Demo content. Replace with your own description, photos and prices.",
                 collection="Demo", is_active=True, **flags)
+            mine = own_photos(self.photos_dir, p.slug) if self.photos_dir else []
             for j, colour in enumerate(colours):
-                m = self._media(f"{name} {colour}", (150 + 12 * i, 110 + 8 * j, 120 + 10 * i),
-                                "product")
+                tone = _hex(COLOURS.get(colour, ""), (150 + 12 * i, 110 + 8 * j, 120 + 10 * i))
+                m = self._media(f"{name} {colour}", tone, "product", art=KIND.get(cslug),
+                                upload=mine[j % len(mine)] if mine else None)
                 ProductImage.objects.create(product=p, media=m, is_primary=j == 0, sort=j,
                                             color=colour)
                 for size in sizes:

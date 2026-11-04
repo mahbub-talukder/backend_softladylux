@@ -139,3 +139,26 @@ def test_reset_keeps_a_subcategory_that_a_real_product_uses(demo):
                            category=sub.category, subcategory=sub, collection="Mine")
     run("seed_demo", "--reset")
     assert SubCategory.objects.filter(name="Air Bra").exists()  # still in use: kept
+
+
+def test_generated_drawings_differ_per_garment_and_meet_the_photo_size_rule(demo):
+    from PIL import Image
+
+    bra = Product.objects.get(name="Silk-Touch Plunge Bra").images.first().media
+    top = Product.objects.get(name="Linen Wrap Top").images.first().media
+    with Image.open(bra.file.path) as a, Image.open(top.file.path) as b:
+        assert max(a.size) >= 600 and a.size == b.size == (900, 1200)  # §10 product photo size
+        assert a.tobytes() != b.tobytes()  # a bra is not drawn like a top
+    assert "[demo]" in bra.alt_text
+
+
+def test_own_photos_folder_is_used_instead_of_drawings(settings, tmp_path):
+    from PIL import Image
+
+    settings.DEBUG = True
+    Image.new("RGB", (1000, 1500), (10, 200, 30)).save(tmp_path / "silk-touch-plunge-bra-1.jpg")
+    run("seed_demo", "--photos-dir", str(tmp_path))
+    mine = Product.objects.get(name="Silk-Touch Plunge Bra").images.first().media
+    assert (mine.width, mine.height) == (1000, 1500)
+    other = Product.objects.get(name="Linen Wrap Top").images.first().media
+    assert (other.width, other.height) == (900, 1200)  # no photo for it: generated drawing
