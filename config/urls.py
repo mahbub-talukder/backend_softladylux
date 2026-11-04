@@ -7,6 +7,7 @@ urlpatterns = [
     path(f"api/{settings.ADMIN_URL}/", admin.site.urls),
     path("api/v1/admin/", include("apps.catalog.admin_urls")),
     path("api/v1/admin/", include("apps.shop.admin_urls")),
+    path("api/v1/admin/", include("apps.reports.admin_urls")),
     path("api/v1/admin/", include("apps.core.admin_urls")),
     path("api/v1/", include("apps.accounts.urls")),
     path("api/v1/", include("apps.core.urls")),

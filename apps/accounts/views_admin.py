@@ -20,6 +20,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core import audit
+from apps.core.throttles import LoginThrottle
 
 from .models import Role, User
 from .permissions import (
@@ -55,6 +56,7 @@ class AdminLoginView(APIView):
 
     authentication_classes: list = []
     permission_classes = [AllowAny]
+    throttle_classes = [LoginThrottle]  # §9: rate limit on login
 
     def post(self, request):
         email = str(request.data.get("email", "")).strip().lower()

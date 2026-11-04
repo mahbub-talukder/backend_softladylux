@@ -332,3 +332,32 @@ def test_scenario_29_guest_orders_link_on_verified_registration_and_tracking_sti
     anon = APIClient()
     t = anon.post(f"{B}/track/", {"number": guest.number, "phone": "01712345678"}, format="json")
     assert t.status_code == 200  # guest tracking still works after linking
+
+
+# ------------------------------------------------------------------ rate limits (§9)
+
+
+@pytest.mark.parametrize("scope,call", [
+    ("login", lambda c: c.post(f"{B}/auth/login/", {"phone": "01712345678", "password": "x"},
+                               format="json")),
+    ("forgot", lambda c: c.post(f"{B}/auth/password/forgot/", {"phone": "01712345678"},
+                                format="json")),
+    ("otp_ip", lambda c: c.post(f"{B}/auth/register/verify/", {"phone": "01712345678",
+                                                               "code": "123456"}, format="json")),
+])
+def test_customer_auth_endpoints_are_rate_limited(api_client, monkeypatch, scope, call):
+    from rest_framework.throttling import SimpleRateThrottle
+
+    monkeypatch.setitem(SimpleRateThrottle.THROTTLE_RATES, scope, "2/min")
+    codes = [call(api_client).status_code for _ in range(3)]
+    assert codes[2] == 429 and 429 not in codes[:2]
+
+
+def test_admin_login_is_rate_limited(api_client, monkeypatch):
+    from rest_framework.throttling import SimpleRateThrottle
+
+    monkeypatch.setitem(SimpleRateThrottle.THROTTLE_RATES, "login", "2/min")
+    body = {"email": "nobody@example.com", "password": "x"}
+    codes = [api_client.post(f"{B}/admin/auth/login/", body, format="json").status_code
+             for _ in range(3)]
+    assert codes == [401, 401, 429]
