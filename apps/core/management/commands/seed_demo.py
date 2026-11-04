@@ -142,6 +142,48 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"Demo content ready ({n} new products)."))
         cache.invalidate()
 
+    def _orders(self):
+        """A handful of demo orders in every stage so the admin screens have something to show.
+        Created once (skipped when demo orders exist); they carry the [demo] note."""
+        from apps.catalog.models import Variant
+        from apps.shop import orders as flow
+        from apps.shop.checkout import method_enabled, place_order
+        from apps.shop.models import Order
+        if Order.objects.filter(note__startswith=TAG).exists():
+            return
+        variants = list(Variant.objects.filter(is_active=True, on_hand__gt=3,
+                                               product__is_active=True).order_by("id")[:12])
+        if len(variants) < 4:
+            return
+        people = [("Nusrat Jahan", "01711000001"), ("Farhana Akter", "01711000002"),
+                  ("Tania Rahman", "01711000003"), ("Mim Sultana", "01711000004"),
+                  ("Sadia Islam", "01711000005"), ("Rima Khatun", "01711000006"),
+                  ("Ayesha Siddika", "01711000007"), ("Lubna Haque", "01711000008")]
+        site = SiteSettings.load()
+        methods = [m for m in ("bkash", "nagad", "cod") if method_enabled(site, m)] or ["cod"]
+        plan = ["draft", "draft", "confirmed", "confirmed", "shipping", "delivered", "cancelled", "delivered"]
+        for i, ((name, phone), stage) in enumerate(zip(people, plan, strict=True)):
+            pay = methods[i % len(methods)]
+            data = {"name": name, "phone": phone, "district": "Dhaka", "thana": "Dhanmondi",
+                    "address_line": f"House {10 + i}, Road {i + 2}", "note": f"{TAG} sample order",
+                    "area": "inside_dhaka" if i % 2 == 0 else "outside_dhaka", "payment_method": pay,
+                    "lines": [{"variant": variants[i % len(variants)].id, "quantity": 1 + i % 2},
+                              {"variant": variants[(i + 5) % len(variants)].id, "quantity": 1}]}
+            if pay != "cod":
+                data.update(sender_number=phone, trx_id=f"DEMO{pay[:2].upper()}{1000 + i}X")
+            order, _ = place_order(data)
+            if stage == "draft":
+                continue
+            if pay != "cod":
+                flow.verify_payment(order.id, None)
+            flow.transition(order.id, "confirmed")
+            if stage == "cancelled":
+                flow.transition(order.id, "cancelled", reason="Customer changed their mind")
+            elif stage in ("shipping", "delivered"):
+                flow.transition(order.id, "shipping", courier="Pathao", tracking=f"PT{4400 + i}")
+                if stage == "delivered":
+                    flow.transition(order.id, "delivered")
+
     # ------------------------------------------------------------------ seed
     def _media(self, label, tone, kind, size=(900, 1200), art=None, upload=None):
         """A MediaAsset from the owner's own file (`upload`) or a generated line drawing."""
@@ -198,6 +240,7 @@ class Command(BaseCommand):
             created += 1
         self._content()
         self._trust()
+        self._orders()
         self._settings()
         return created
 

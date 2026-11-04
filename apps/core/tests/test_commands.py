@@ -93,7 +93,7 @@ def test_seed_demo_creates_catalogue_photos_content(demo):
     p = Product.objects.get(name="Silk-Touch Plunge Bra")
     assert p.subcategory.name == "Air Bra" and p.variants.count() == 4  # 2 sizes x 2 colours
     assert p.images.count() == 2 and p.images.first().media.width >= 600  # §10 photo size
-    assert all(v.on_hand == 12 for v in p.variants.all())
+    assert all(0 < v.on_hand <= 12 for v in p.variants.all())  # opening 12, minus demo orders
     assert p.variants.first().movements.filter(reason="opening_stock").exists()  # INV-08
     assert CarouselSlide.objects.count() == 2 and not any(
         "[demo]" in s.heading for s in CarouselSlide.objects.all())
@@ -167,3 +167,15 @@ def test_own_photos_folder_is_used_instead_of_drawings(settings, tmp_path):
     assert (mine.width, mine.height) == (1000, 1500)
     other = Product.objects.get(name="Linen Wrap Top").images.first().media
     assert (other.width, other.height) == (900, 1200)  # no photo for it: generated drawing
+
+
+def test_seed_demo_creates_sample_orders_once(settings):
+    from apps.shop.models import Order
+
+    settings.DEBUG = True
+    run("seed_demo")
+    n = Order.objects.filter(note__startswith="[demo]").count()
+    assert n == 8
+    assert set(Order.objects.values_list("status", flat=True)) >= {"draft", "confirmed", "shipping", "delivered", "cancelled"}
+    run("seed_demo")  # idempotent
+    assert Order.objects.filter(note__startswith="[demo]").count() == n
