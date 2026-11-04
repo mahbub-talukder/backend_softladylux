@@ -98,6 +98,9 @@ def test_card_shape_badge_soldout_no_stock_leak(api_client, bras):  # CAT-05/13
     assert r["air-one"]["discount_pct"] == 20 and r["air-one"]["compare_at_price"] == "1875.00"
     assert r["tube-one"]["sold_out"] is True and r["air-one"]["sold_out"] is False
     assert "on_hand" not in str(r["air-one"])
+    v = r["air-one"]["variants"]  # CAT-12 Quick Add data
+    assert [x["size_label"] for x in v] == ["34B", "36C"] and all(x["in_stock"] for x in v)
+    assert r["tube-one"]["variants"][0]["in_stock"] is False
 
 
 def test_draft_products_not_public(api_client):

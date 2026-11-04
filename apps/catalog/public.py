@@ -47,6 +47,9 @@ def card(p: Product) -> dict:
                         if p.subcategory else None),
         "colors": colors, "sizes": sorted({v.size_label for v in variants if v.size_label}),
         "sold_out": sold_out,  # CAT-13
+        # CAT-12 Quick Add: enough to add the default variant, or to show an inline size picker.
+        "variants": [{"id": v.id, "size_label": v.size_label, "color_name": v.color_name,
+                      "in_stock": v.on_hand > 0} for v in variants],
     }
 
 
