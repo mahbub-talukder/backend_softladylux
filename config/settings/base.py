@@ -91,6 +91,12 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.StandardPagination",
     "EXCEPTION_HANDLER": "apps.core.exceptions.api_exception_handler",
+    # §9 rate limiting. Scoped throttles are attached per view (apps/core/throttles.py).
+    "DEFAULT_THROTTLE_RATES": {
+        "cart_validate": "60/min", "coupon_validate": "20/min", "checkout": "10/min",
+        "track": "20/min", "contact": "5/hour",
+        "login": "20/hour", "otp_ip": "30/hour", "forgot": "10/hour",
+    },
 }
 
 # SRS ARC-05 / ARC-06: API under /api/v1/.
@@ -111,6 +117,22 @@ AUTH_COOKIE_ACCESS = "sll_access"
 AUTH_COOKIE_REFRESH = "sll_refresh"
 AUTH_COOKIE_SECURE = env.bool("COOKIE_SECURE", default=False)
 AUTH_COOKIE_SAMESITE = "Lax"
+
+# Shared cache for every gunicorn worker and the Django-Q2 worker: the built-in PostgreSQL
+# database cache (no Redis, ARC-10). Per-process caches would make "cache cleared on save"
+# (SET-06, THM-06, WEB-10) and rate-limit counters (§9) differ between workers.
+# The table is created by `manage.py createcachetable` (scripts/entrypoint.sh).
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.db.DatabaseCache",
+                      "LOCATION": "django_cache"}}
+
+# Email (NTF-02/03/06): generic SMTP from env, console backend by default so dev/test never send.
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="SoftLadyLux <no-reply@localhost>")
 
 # Django-Q2 on the PostgreSQL (ORM) broker. No Redis, no Celery (ARC-10).
 Q_CLUSTER = {
