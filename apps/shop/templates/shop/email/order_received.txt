@@ -1,0 +1,14 @@
+Hello {{ order.name }},
+
+Thank you for your order {{ order.number }}. We have received it.
+{% if order.payment_method != "cod" %}Our team will verify your {{ order.get_payment_method_display }} payment and then confirm your order.{% else %}You will pay in cash when your order arrives.{% endif %}
+
+{% for i in items %}- {{ i.product_name }}{% if i.variant_label %} ({{ i.variant_label }}){% endif %} x {{ i.quantity }}: BDT {{ i.line_total }}
+{% endfor %}
+Subtotal: BDT {{ order.subtotal }}
+{% if order.coupon_discount %}Coupon {{ order.coupon_code }}: -BDT {{ order.coupon_discount }}
+{% endif %}Delivery: BDT {{ order.delivery_fee }}
+Total: BDT {{ order.total }}
+
+You can cancel the order any time before it ships.
+{{ site.company_name }}{% if site.support_phones %} · {{ site.support_phones.0 }}{% endif %}

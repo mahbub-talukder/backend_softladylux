@@ -1,4 +1,4 @@
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
@@ -9,6 +9,18 @@ def _flatten(detail):
     if isinstance(detail, list):
         return [str(i) if not isinstance(i, dict | list) else _flatten(i) for i in detail]
     return str(detail)
+
+
+class Conflict(APIException):
+    """§7: HTTP 409 for stock / state / price conflicts. `fields` carries per-line detail."""
+
+    status_code = 409
+    default_code = "conflict"
+    default_detail = "The request conflicts with the current state."
+
+    def __init__(self, message=None, code=None, fields=None):
+        super().__init__(message, code)
+        self.fields = fields or {}
 
 
 def api_exception_handler(exc, context):
@@ -31,4 +43,6 @@ def api_exception_handler(exc, context):
         )
     code = getattr(exc, "default_code", "error")
     message = str(getattr(exc, "detail", "Error"))
-    return Response({"code": code, "message": message, "fields": {}}, status=response.status_code)
+    fields = getattr(exc, "fields", {})
+    return Response({"code": code, "message": message, "fields": fields},
+                    status=response.status_code)

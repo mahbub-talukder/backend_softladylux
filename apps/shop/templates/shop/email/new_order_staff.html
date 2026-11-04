@@ -1,0 +1,6 @@
+{% include "shop/email/_layout_top.html" %}
+    <p><b>New order {{ order.number }}</b> from {{ order.name }} ({{ order.phone }}).</p>
+    <p>Payment: {{ order.get_payment_method_display }}{% if order.payment.trx_id %} · TrxID {{ order.payment.trx_id }}{% endif %}<br>Total: ৳ {{ order.total }}</p>
+    <p>Open it in the admin panel to verify the payment and confirm.</p>
+  </div>
+</div>

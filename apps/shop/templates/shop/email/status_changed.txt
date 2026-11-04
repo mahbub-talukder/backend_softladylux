@@ -1,0 +1,6 @@
+Hello {{ order.name }},
+
+{{ line }}
+Order {{ order.number }}{% if status == "shipping" and order.courier %} · {{ order.courier }}{% if order.tracking_ref %} · tracking {{ order.tracking_ref }}{% endif %}{% endif %}
+
+{{ site.company_name }}{% if site.support_phones %} · {{ site.support_phones.0 }}{% endif %}

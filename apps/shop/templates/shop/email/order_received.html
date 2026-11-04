@@ -1,0 +1,14 @@
+{% include "shop/email/_layout_top.html" %}
+    <p>Hello {{ order.name }},</p>
+    <p>Thank you for your order <b>{{ order.number }}</b>. We have received it.
+    {% if order.payment_method != "cod" %}Our team will verify your {{ order.get_payment_method_display }} payment and then confirm your order.{% else %}You will pay in cash when your order arrives.{% endif %}</p>
+    <table style="width:100%;border-collapse:collapse">
+      {% for i in items %}<tr><td style="padding:6px 0;border-bottom:1px solid #E3D9C9">{{ i.product_name }}{% if i.variant_label %} ({{ i.variant_label }}){% endif %} × {{ i.quantity }}</td><td style="text-align:right;border-bottom:1px solid #E3D9C9">৳ {{ i.line_total }}</td></tr>{% endfor %}
+      <tr><td style="padding-top:8px">Subtotal</td><td style="text-align:right">৳ {{ order.subtotal }}</td></tr>
+      {% if order.coupon_discount %}<tr><td>Coupon {{ order.coupon_code }}</td><td style="text-align:right">− ৳ {{ order.coupon_discount }}</td></tr>{% endif %}
+      <tr><td>Delivery</td><td style="text-align:right">৳ {{ order.delivery_fee }}</td></tr>
+      <tr><td><b>Total</b></td><td style="text-align:right"><b>৳ {{ order.total }}</b></td></tr>
+    </table>
+    <p>You can cancel the order any time before it ships.</p>
+  </div>
+</div>

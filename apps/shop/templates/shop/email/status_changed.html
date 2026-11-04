@@ -1,0 +1,6 @@
+{% include "shop/email/_layout_top.html" %}
+    <p>Hello {{ order.name }},</p>
+    <p>{{ line }}</p>
+    <p>Order <b>{{ order.number }}</b>{% if status == "shipping" and order.courier %} · {{ order.courier }}{% if order.tracking_ref %} · tracking {{ order.tracking_ref }}{% endif %}{% endif %}</p>
+  </div>
+</div>
