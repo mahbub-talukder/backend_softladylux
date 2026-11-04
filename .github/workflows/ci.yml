@@ -31,3 +31,35 @@ jobs:
       - run: python manage.py makemigrations --check --dry-run
       # The route-coverage gate runs inside pytest and fails the build if any API route is untested.
       - run: pytest --cov --cov-report=term-missing
+
+  release:
+    # M6: the production image builds, the production env check accepts a filled-in template and the
+    # Django deployment checks pass.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t sll-backend:ci .
+      - name: Build a throwaway production env from the template
+        run: |
+          python3 - <<'PY'
+          import re, secrets
+          text = open(".env.production.example").read()
+          def fill(m):
+              return secrets.token_urlsafe(48)
+          text = re.sub(r"REPLACE_ME\w*", fill, text)
+          text = re.sub(r"^ADMIN_URL=.*$", "ADMIN_URL=ci-admin-" + secrets.token_hex(8), text, flags=re.M)
+          text = re.sub(r"^ALLOWED_HOSTS=.*$", "ALLOWED_HOSTS=shop.ci.example", text, flags=re.M)
+          text = re.sub(r"^CSRF_TRUSTED_ORIGINS=.*$", "CSRF_TRUSTED_ORIGINS=https://shop.ci.example", text, flags=re.M)
+          text = re.sub(r"^DATABASE_URL=.*$", "DATABASE_URL=postgres://u:" + secrets.token_hex(8) + "@db:5432/x", text, flags=re.M)
+          open("/tmp/ci.env", "w").write(text)
+          PY
+      - name: Production environment check
+        run: docker run --rm --env-file /tmp/ci.env sll-backend:ci python -m apps.core.envcheck
+      - name: Django deployment checks
+        run: docker run --rm --env-file /tmp/ci.env --entrypoint python sll-backend:ci manage.py check --deploy
+      - name: An unfinished template must be refused
+        run: |
+          if docker run --rm --env-file .env.production.example sll-backend:ci python -m apps.core.envcheck; then
+            echo "the unfilled template must not pass"; exit 1
+          fi

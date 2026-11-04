@@ -1,23 +1,44 @@
-# Production-style stack. Run from the PROJECT ROOT (parent of backend/ and frontend/):
-#   docker compose -f backend/deploy/docker-compose.yml up --build
-# Config comes from <project root>/.env (copy backend/.env.example). No Redis: Django-Q2 uses PostgreSQL.
+# Production stack. Run from the PROJECT ROOT (parent of backend/ and frontend/):
+#   docker compose -f backend/deploy/docker-compose.yml up -d --build
+# Config comes from <project root>/.env (copy backend/.env.production.example and fill it in).
+# Another file can be used with ENV_FILE=/path/to/file (e.g. for staging).
+# TLS: put fullchain.pem and privkey.pem in backend/deploy/certs/ (see certs/README.md), or use
+# docker-compose.proxy-tls.yml when a provider's proxy terminates TLS (docs/DEPLOYMENT.md).
+# No Redis: Django-Q2 uses PostgreSQL. Only nginx publishes ports.
 name: softladylux
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
 
 services:
   db:
     image: postgres:16
-    env_file: ../../.env
+    env_file: ${ENV_FILE:-../../.env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       retries: 10
+    logging: *logging
     restart: unless-stopped
+
+  # One-shot: the shared named volumes are created root-owned, but the app runs as an unprivileged
+  # user. This fixes ownership once so uploads and backups can be written.
+  volume-init:
+    image: alpine:3.20
+    command: ["sh", "-c", "chown -R 10001:10001 /app/media /app/backups && chmod 755 /app/media"]
+    volumes:
+      - media:/app/media
+      - backups:/app/backups
+    restart: "no"
 
   backend:
     build: ..
-    env_file: ../../.env
+    env_file: ${ENV_FILE:-../../.env}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.prod
       RUN_MIGRATIONS: "1"
@@ -27,16 +48,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      volume-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/')"]
       interval: 10s
       retries: 10
+      start_period: 30s
+    logging: *logging
     restart: unless-stopped
 
   worker:
     build: ..
     command: python manage.py qcluster
-    env_file: ../../.env
+    env_file: ${ENV_FILE:-../../.env}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.prod
     volumes:
@@ -44,33 +69,85 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      # the slim image has no pgrep: look for the qcluster process in /proc
+      test: ["CMD", "python", "-c", "import os,sys; sys.exit(0 if any(b'qcluster' in open(f'/proc/{p}/cmdline','rb').read() for p in os.listdir('/proc') if p.isdigit()) else 1)"]
+      interval: 30s
+      retries: 3
+    logging: *logging
     restart: unless-stopped
 
   frontend:
     build:
       context: ../../frontend
       target: prod
-    env_file: ../../.env
+    env_file: ${ENV_FILE:-../../.env}
     environment:
-      NUXT_IMAGE_DIR: /media   # Nuxt Image (IPX) reads originals from the shared media volume (WEB-09)
+      # Nuxt Image (IPX) reads the originals from the shared media volume (WEB-09). NUXT_IPX_FS_DIR is the
+      # runtime setting (the production server ignores NUXT_IMAGE_DIR, which only applies at build time).
+      NUXT_IPX_FS_DIR: /media
     volumes:
       - media:/media:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/robots.txt').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      retries: 5
+      start_period: 20s
+    logging: *logging
     restart: unless-stopped
 
   nginx:
     image: nginx:1.27-alpine
     ports:
-      - "8080:80"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
+      - ./certs:/etc/nginx/certs:ro
       - media:/media:ro
       - static:/static:ro
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/v1/health/"]
+      interval: 15s
+      retries: 5
+    logging: *logging
+    restart: unless-stopped
+
+  # Optional daily backup (SRS §9: the daily schedule runs --mode all; the newest BACKUP_KEEP are kept).
+  # Start with:  docker compose -f backend/deploy/docker-compose.yml --profile backup up -d backup
+  # Files land in the `backups` volume: copy it OFF the server regularly (docs/RUNBOOK.md).
+  backup:
+    profiles: ["backup"]
+    build: ..
+    env_file: ${ENV_FILE:-../../.env}
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      BACKUP_DIR: /app/backups
+      MEDIA_DIR: /app/media
+    entrypoint: []
+    command: ["sh", "-c", "while true; do scripts/backup.sh --mode all || echo 'backup FAILED' >&2; sleep 86400; done"]
+    volumes:
+      - media:/app/media:ro
+      - backups:/app/backups
+    depends_on:
+      db:
+        condition: service_healthy
+      volume-init:
+        condition: service_completed_successfully
+    logging: *logging
     restart: unless-stopped
 
 volumes:
   pgdata:
   media:
   static:
+  backups:

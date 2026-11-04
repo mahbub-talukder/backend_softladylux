@@ -2,6 +2,7 @@
 #   docker compose -f backend/deploy/docker-compose.yml -f backend/deploy/docker-compose.dev.yml up --build
 services:
   backend:
+    user: root   # the source tree is bind-mounted from the host; the image's non-root user is for production
     build:
       context: ..
       args:
@@ -13,6 +14,7 @@ services:
       - ..:/app
 
   worker:
+    user: root
     build:
       context: ..
       args:

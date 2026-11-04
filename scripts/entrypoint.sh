@@ -12,6 +12,10 @@ for _ in range(30):
 else:
     raise SystemExit("database not reachable")
 PY
+# M6: a production container refuses to start on unsafe configuration (apps/core/envcheck.py).
+if [ "$DJANGO_SETTINGS_MODULE" = "config.settings.prod" ]; then
+  python -m apps.core.envcheck
+fi
 if [ "$RUN_MIGRATIONS" = "1" ]; then
   python manage.py migrate --noinput
   python manage.py createcachetable

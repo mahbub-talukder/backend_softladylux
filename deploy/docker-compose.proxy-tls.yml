@@ -1,0 +1,13 @@
+# Override for hosting where a provider's proxy / load balancer terminates TLS.
+#   docker compose -f backend/deploy/docker-compose.yml -f backend/deploy/docker-compose.proxy-tls.yml up -d --build
+# nginx then listens on plain HTTP only and trusts X-Forwarded-Proto from that proxy. Make sure only
+# the proxy can reach this port (firewall / private network).
+services:
+  nginx:
+    ports: !override
+      - "${HTTP_PORT:-80}:80"
+    volumes: !override
+      - ./nginx/proxy-tls.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
+      - media:/media:ro
+      - static:/static:ro
