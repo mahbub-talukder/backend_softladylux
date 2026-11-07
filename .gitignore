@@ -3,6 +3,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.production.example
 .venv/
 .pytest_cache/
 .ruff_cache/

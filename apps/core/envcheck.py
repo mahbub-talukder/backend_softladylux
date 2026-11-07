@@ -65,9 +65,6 @@ def problems(env: Mapping[str, str]) -> tuple[list[str], list[str]]:
     elif g("SMS_PROVIDER") == "mimsms" and not g("MIMSMS_ENDPOINT"):
         warnings.append("SMS_PROVIDER=mimsms but MIMSMS_ENDPOINT is empty in the environment; "
                         "make sure Admin → Settings → SMS is filled in.")
-    if not g("NUXT_PUBLIC_SITE_URL"):
-        warnings.append("NUXT_PUBLIC_SITE_URL is empty: sitemap and canonical URLs use the request "
-                        "host.")
     return errors, warnings
 
 

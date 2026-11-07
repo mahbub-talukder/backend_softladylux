@@ -1,4 +1,0 @@
-# TLS certificate and key live here on the server (fullchain.pem, privkey.pem). Never commit them.
-*
-!.gitignore
-!README.md

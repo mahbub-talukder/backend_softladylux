@@ -13,7 +13,7 @@ GOOD = {
     "CSRF_TRUSTED_ORIGINS": "https://shop.example.com", "COOKIE_SECURE": "true",
     "POSTGRES_PASSWORD": "pg-pass-Qw8z", "DATABASE_URL": "postgres://u:pg-pass-Qw8z@db:5432/x",
     "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend", "SMS_PROVIDER": "mimsms",
-    "MIMSMS_ENDPOINT": "https://sms.example.test", "NUXT_PUBLIC_SITE_URL": "https://shop.example.com",
+    "MIMSMS_ENDPOINT": "https://sms.example.test",
 }
 
 
@@ -46,8 +46,8 @@ def test_missing_values_are_errors_not_crashes():
 def test_warnings_do_not_block():
     errors, warnings = problems({**GOOD, "EMAIL_BACKEND": "django.core.mail.backends.console."
                                  "EmailBackend", "SMS_PROVIDER": "fake", "HSTS_SECONDS": "0",
-                                 "SSL_REDIRECT": "false", "NUXT_PUBLIC_SITE_URL": ""})
-    assert errors == [] and len(warnings) == 5
+                                 "SSL_REDIRECT": "false"})
+    assert errors == [] and len(warnings) == 4
 
 
 def test_mimsms_without_env_endpoint_is_only_a_warning():

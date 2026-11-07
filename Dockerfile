@@ -14,11 +14,11 @@ COPY requirements.txt requirements-dev.txt ./
 ARG INSTALL_DEV=0
 RUN pip install --no-cache-dir -r $([ "$INSTALL_DEV" = "1" ] && echo requirements-dev.txt || echo requirements.txt)
 COPY . .
-# Run as an unprivileged user. media/ and staticfiles/ are volumes written by the app.
+# The app user owns uploads, collected static files, and backups. The container starts as root so
+# entrypoint.sh can hand a new Docker volume to this user, then production drops to app.
 RUN useradd --system --uid 10001 --home-dir /app app \
     && mkdir -p /app/media /app/staticfiles /app/backups \
-    && chown -R app:app /app/media /app/staticfiles /app/backups
-USER app
+    && chown app:app /app/media /app/staticfiles /app/backups
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
 # Workers and timeout come from the environment (see .env.production.example).
 CMD ["sh", "-c", "exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3} --timeout ${GUNICORN_TIMEOUT:-60} --access-logfile - --error-logfile -"]
