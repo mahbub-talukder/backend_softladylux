@@ -78,7 +78,8 @@ class SuggestView(PublicMixin, APIView):
             return Response([])
         qs = public.products_qs().filter(public.search_q(term)).distinct()[:6]
         return Response([{"name": c["name"], "slug": c["slug"], "price": c["price"],
-                          "image": c["image"]} for c in map(public.card, qs)])
+                          "image": c["image"], "category": c["category"]}
+                         for c in map(public.card, qs)])
 
 
 class SizeChartListView(PublicMixin, APIView):

@@ -219,8 +219,9 @@ def test_bulk_actions(admin):  # CAT-15, CAT-21
 
 def test_bulk_activate_requires_publishable(admin):
     p = product("Bare", images=0, active=False)
-    assert admin.post(f"{A}/products/bulk/", {"ids": [p.id], "action": "activate"},
-                      format="json").status_code == 400
+    r = admin.post(f"{A}/products/bulk/", {"ids": [p.id], "action": "activate"}, format="json")
+    assert r.status_code == 400
+    assert "Bare" in str(r.data["fields"]["ids"])  # names the product that blocks the batch
 
 
 def test_export_csv_includes_subcategory(admin):  # CAT-15, CAT-22
@@ -263,12 +264,25 @@ def test_images_multi_upload_primary_reorder_delete(admin):  # CAT-04
     assert len(admin.get(url).data) == 2
 
 
-def test_image_rules(admin):  # §10: >= 600 px, WEB-09
+def test_image_rules(admin):  # §10: >= 300 px (owner-approved amendment), WEB-09
     p = product(images=0, active=False)
     url = f"{A}/products/{p.id}/images/"
     assert admin.post(url, {"files": [image_file(size=(200, 200))]}, format="multipart").status_code == 400
     assert admin.post(url, {}, format="multipart").status_code == 400
     assert not ProductImage.objects.filter(product=p).exists()
+    ok = admin.post(url, {"files": [image_file(size=(300, 200))]}, format="multipart")
+    assert ok.status_code == 201 and ProductImage.objects.filter(product=p).count() == 1  # 300 px long side
+
+
+def test_image_batch_is_all_or_nothing_and_names_the_bad_file(admin):  # WEB-09, UI-06
+    p = product(images=0, active=False)
+    url = f"{A}/products/{p.id}/images/"
+    good, bad = image_file(size=(900, 1200)), image_file(size=(100, 100))
+    bad.name = "tiny.jpg"
+    r = admin.post(url, {"files": [good, bad]}, format="multipart")
+    assert r.status_code == 400
+    assert any("tiny.jpg" in m and "300 px" in m for m in r.data["fields"]["files"])
+    assert not ProductImage.objects.filter(product=p).exists()  # the good file was not half-saved
 
 
 def test_deleting_last_image_unpublishes(admin):  # CAT-04

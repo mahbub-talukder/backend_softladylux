@@ -21,6 +21,7 @@ from .models import (
 
 MAX_UPLOAD = 5 * 1024 * 1024  # WEB-09
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
+PRODUCT_MIN_SIDE = 300  # §10 (owner-approved amendment: was 600): long side of a product photo, px
 
 
 class MediaSerializer(serializers.ModelSerializer):
@@ -69,10 +70,12 @@ class MediaUploadSerializer(serializers.ModelSerializer):
         return f
 
     def validate(self, data):
-        # §10: product photos need at least 600 px on the long side.
-        if data.get("kind") == MediaKind.PRODUCT and max(getattr(self, "_size", (0, 0))) < 600:
+        # §10: product photos need at least PRODUCT_MIN_SIDE px on the long side.
+        if (data.get("kind") == MediaKind.PRODUCT
+                and max(getattr(self, "_size", (0, 0))) < PRODUCT_MIN_SIDE):
             raise serializers.ValidationError(
-                {"file": "Product photos must be at least 600 px on the long side."})
+                {"file": f"Product photos must be at least {PRODUCT_MIN_SIDE} px "
+                         "on the long side."})
         return data
 
     def create(self, validated):
@@ -154,13 +157,18 @@ class AdminSettingsSerializer(serializers.ModelSerializer):
 class PaletteSerializer(serializers.ModelSerializer):
     class Meta:
         model = ThemePalette
-        fields = ["id", "name", "primary_hex", "accent_hex", "is_builtin"]
+        fields = ["id", "name", "primary_hex", "accent_hex", "background_hex", "text_hex",
+                  "is_builtin"]
         read_only_fields = ["is_builtin"]
 
     def validate(self, data):
         try:
             data["primary_hex"] = theme.normalize_hex(data["primary_hex"])
             data["accent_hex"] = theme.normalize_hex(data["accent_hex"])
+            # Background / Text are optional on create: missing = the Signature neutrals.
+            data["background_hex"] = theme.normalize_hex(
+                data.get("background_hex") or theme.DEFAULT_BG)
+            data["text_hex"] = theme.normalize_hex(data.get("text_hex") or theme.DEFAULT_TEXT)
         except ValueError as e:
             raise serializers.ValidationError(str(e)) from None
         return data

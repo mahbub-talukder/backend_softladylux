@@ -227,6 +227,9 @@ class ThemePalette(TimeStampedModel):
     name = models.CharField(max_length=40)
     primary_hex = models.CharField(max_length=7)
     accent_hex = models.CharField(max_length=7)
+    # Storefront page Background and Text (owner-approved amendment); defaults = Signature neutrals.
+    background_hex = models.CharField(max_length=7, default="#F8F4EC")
+    text_hex = models.CharField(max_length=7, default="#231E1C")
     is_builtin = models.BooleanField(default=False)
     sort = models.PositiveSmallIntegerField(default=0)
     is_active = models.BooleanField(default=True)
@@ -245,6 +248,8 @@ class ThemeSettings(SingletonModel):
                                 related_name="+")
     primary_hex = models.CharField(max_length=7, default="#231E1C")
     accent_hex = models.CharField(max_length=7, blank=True, default="#8C5550")  # "" = none
+    background_hex = models.CharField(max_length=7, default="#F8F4EC")
+    text_hex = models.CharField(max_length=7, default="#231E1C")
     tokens = models.JSONField(default=dict)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")

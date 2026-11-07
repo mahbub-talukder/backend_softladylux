@@ -134,3 +134,54 @@ def test_delete_custom_not_builtin(as_user, owner):  # THM-18/19
     assert c.get(f"{A}/theme/").data["palette"] is None  # live colours stay, now "custom"
     sig = ThemePalette.objects.get(name="Signature")
     assert c.delete(f"{A}/theme/palettes/{sig.id}/").status_code == 400
+
+
+def test_publish_background_and_text_reaches_public_tokens(as_user, owner, api_client):  # Task 1
+    api_client.get("/api/v1/theme/")  # warm the cache: saving must invalidate it
+    r = as_user(owner).put(f"{A}/theme/", {"primary_hex": "#6b4e43", "background_hex": "#fff4f4",
+                                           "text_hex": "#2b1b1b"}, format="json")
+    assert r.status_code == 200 and r.data["background_hex"] == "#FFF4F4"
+    pub = api_client.get("/api/v1/theme/").data
+    assert pub["background"] == "#FFF4F4" and pub["text"] == "#2B1B1B"
+    assert pub["tokens"]["--color-bg"] == "#FFF4F4" and pub["tokens"]["--color-ink"] == "#2B1B1B"
+    assert "--color-surface" in pub["tokens"]
+
+
+def test_text_on_background_low_contrast_needs_confirmation(as_user, owner):  # THM-07 extended
+    c = as_user(owner)
+    body = {"primary_hex": "#231E1C", "background_hex": "#F8F4EC", "text_hex": "#E8E0D0"}
+    r = c.put(f"{A}/theme/", body, format="json")
+    assert r.status_code == 400 and r.data["code"] == "low_contrast"
+    assert r.data["issues"] == ["text_on_background"]
+    ok = c.put(f"{A}/theme/", {**body, "confirm_low_contrast": True}, format="json")
+    assert ok.status_code == 200 and ok.data["contrast_issues"] == ["text_on_background"]
+
+
+def test_invalid_background_or_text_rejected(as_user, owner):  # THM-14
+    c = as_user(owner)
+    for field in ("background_hex", "text_hex"):
+        r = c.put(f"{A}/theme/", {"primary_hex": "#6B4E43", field: "blue"}, format="json")
+        assert r.status_code == 400 and field in r.data["fields"]
+
+
+def test_reset_restores_default_background_and_text(as_user, owner, api_client):  # THM-13
+    c = as_user(owner)
+    c.put(f"{A}/theme/", {"primary_hex": "#C9B28D", "background_hex": "#14110F",
+                          "text_hex": "#F2EBE0"}, format="json")
+    r = c.post(f"{A}/theme/reset/")
+    assert r.data["background_hex"] == "#F8F4EC" and r.data["text_hex"] == "#231E1C"
+    assert "--color-bg" not in api_client.get("/api/v1/theme/").data["tokens"]
+
+
+def test_custom_palette_carries_background_and_text(as_user, owner, api_client):  # THM-19
+    c = as_user(owner)
+    r = c.post(f"{A}/theme/palettes/", {"name": "Night", "primary_hex": "#c9b28d",
+                                        "accent_hex": "#8c5550", "background_hex": "#14110f",
+                                        "text_hex": "#f2ebe0"}, format="json")
+    assert r.status_code == 201 and r.data["background_hex"] == "#14110F"
+    pub = c.put(f"{A}/theme/", {"palette": r.data["id"]}, format="json")
+    assert pub.data["background_hex"] == "#14110F" and pub.data["text_hex"] == "#F2EBE0"
+    assert api_client.get("/api/v1/theme/").data["tokens"]["--color-bg"] == "#14110F"
+    plain = c.post(f"{A}/theme/palettes/", {"name": "Plain", "primary_hex": "#1f2f4f",
+                                            "accent_hex": "#b7c4dc"}, format="json")
+    assert plain.data["background_hex"] == "#F8F4EC"  # optional on create

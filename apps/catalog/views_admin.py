@@ -3,6 +3,7 @@ reads, products.manage writes), audit on every write (ADM-10)."""
 
 import csv
 
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -119,7 +120,13 @@ class ProductViewSet(AuditedMixin, viewsets.ModelViewSet):
         if op in ("activate", "deactivate"):
             if op == "activate":
                 for p in qs:
-                    services.check_publishable(p)
+                    try:
+                        services.check_publishable(p)
+                    except serializers.ValidationError as e:  # name the blocking product
+                        d = e.detail.get("is_active", "Not ready to publish.") if isinstance(
+                            e.detail, dict) else "Not ready to publish."
+                        d = d[0] if isinstance(d, list) else d
+                        raise serializers.ValidationError({"ids": f"{p.name}: {d}"}) from None
             qs.update(is_active=(op == "activate"))
         elif op == "set_category":
             cat = get_object_or_404(Category, pk=request.data.get("category"))
@@ -209,16 +216,28 @@ class ImageViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.Update
         if not files:
             raise serializers.ValidationError({"files": "Choose at least one image."})
         alt = request.data.get("alt_text") or product.name
-        made = []
+        # Validate every file first (WEB-09 + §10 minimum size) so a bad file never leaves the
+        # batch half saved, and tell the admin exactly which file failed and why.
+        sers, problems = [], []
         for f in files:
             ser = MediaUploadSerializer(data={"file": f, "kind": MediaKind.PRODUCT,
                                               "alt_text": alt}, context={"request": request})
-            ser.is_valid(raise_exception=True)  # WEB-09 + 600 px minimum (§10)
-            asset = ser.save()
-            first = not product.images.exists()
-            made.append(ProductImage.objects.create(
-                product=product, media=asset, is_primary=first,
-                sort=product.images.count()))
+            if ser.is_valid():
+                sers.append(ser)
+                continue
+            for msgs in ser.errors.values():
+                for m in (msgs if isinstance(msgs, list) else [msgs]):
+                    problems.append(f"{f.name}: {m}")
+        if problems:
+            raise serializers.ValidationError({"files": problems})
+        made = []
+        with transaction.atomic():
+            for ser in sers:
+                asset = ser.save()
+                first = not product.images.exists()
+                made.append(ProductImage.objects.create(
+                    product=product, media=asset, is_primary=first,
+                    sort=product.images.count()))
         audit.log(request, "images_added", "Product", product.pk, None, {"count": len(made)})
         cache.invalidate()
         return Response(ImageSerializer(made, many=True).data, status=status.HTTP_201_CREATED)

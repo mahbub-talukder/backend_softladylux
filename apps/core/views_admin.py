@@ -110,14 +110,18 @@ class MediaUploadView(APIView):
 
 
 def _theme_payload(t: ThemeSettings):
+    issues = theme.readability_issues(t.primary_hex, t.background_hex, t.text_hex)
     return {
         "palette": t.palette_id,
         "primary_hex": t.primary_hex,
         "accent_hex": t.accent_hex or None,
+        "background_hex": t.background_hex,
+        "text_hex": t.text_hex,
         "tokens": t.tokens,
         "updated_by": str(t.updated_by) if t.updated_by else None,
         "updated_at": t.updated_at,
-        "low_contrast_warning": theme.readability_warning(t.primary_hex),
+        "low_contrast_warning": bool(issues),
+        "contrast_issues": issues,
     }
 
 
@@ -126,32 +130,45 @@ class ThemeInputSerializer(serializers.Serializer):
         queryset=ThemePalette.objects.filter(is_active=True), required=False, allow_null=True)
     primary_hex = serializers.CharField(required=False)
     accent_hex = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    background_hex = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    text_hex = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     confirm_low_contrast = serializers.BooleanField(required=False, default=False)
 
     def validate(self, data):
         p = data.get("palette")
-        if p:  # THM-19: choosing a palette sets both colours
+        if p:  # THM-19: choosing a palette sets all its colours
             data["primary_hex"], data["accent_hex"] = p.primary_hex, p.accent_hex
+            data["background_hex"], data["text_hex"] = p.background_hex, p.text_hex
         if not data.get("primary_hex"):
             raise serializers.ValidationError({"primary_hex": "Primary colour is required."})
-        try:
-            data["primary_hex"] = theme.normalize_hex(data["primary_hex"])
-            acc = data.get("accent_hex")
-            data["accent_hex"] = theme.normalize_hex(acc) if acc else None
-        except ValueError as e:
-            raise serializers.ValidationError({"primary_hex": str(e)}) from None
+        errors = {}
+        for field, default in (("primary_hex", None), ("accent_hex", None),
+                               ("background_hex", theme.DEFAULT_BG),
+                               ("text_hex", theme.DEFAULT_TEXT)):
+            raw = data.get(field) or default
+            try:
+                data[field] = theme.normalize_hex(raw) if raw else None
+            except ValueError as e:
+                errors[field] = str(e)
+        if errors:
+            raise serializers.ValidationError(errors)
         return data
 
 
-def _apply_theme(request, primary, accent, palette, action):
+def _apply_theme(request, primary, accent, palette, action, background=None, text=None):
     t = ThemeSettings.load()
-    before = {"palette": t.palette_id, "primary_hex": t.primary_hex, "accent_hex": t.accent_hex}
+    before = {"palette": t.palette_id, "primary_hex": t.primary_hex, "accent_hex": t.accent_hex,
+              "background_hex": t.background_hex, "text_hex": t.text_hex}
+    background, text = background or theme.DEFAULT_BG, text or theme.DEFAULT_TEXT
     t.palette, t.primary_hex, t.accent_hex = palette, primary, accent or ""
-    t.tokens = theme.derive_tokens(primary, accent)  # THM-14: always recomputed server-side
+    t.background_hex, t.text_hex = background, text
+    # THM-14: always recomputed server-side
+    t.tokens = theme.derive_tokens(primary, accent, background, text)
     t.updated_by = request.user
     t.save()
     audit.log(request, action, "ThemeSettings", t.pk, before,
-              {"palette": t.palette_id, "primary_hex": primary, "accent_hex": accent})
+              {"palette": t.palette_id, "primary_hex": primary, "accent_hex": accent,
+               "background_hex": background, "text_hex": text})
     cache.invalidate()
     return t
 
@@ -169,12 +186,17 @@ class AdminThemeView(APIView):
         ser = ThemeInputSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         d = ser.validated_data
-        if theme.readability_warning(d["primary_hex"]) and not d["confirm_low_contrast"]:
+        issues = theme.readability_issues(d["primary_hex"], d["background_hex"], d["text_hex"])
+        if issues and not d["confirm_low_contrast"]:
+            msgs = {"primary_on_background": "The primary colour has low contrast on the page "
+                    "background.", "text_on_background": "The text colour is hard to read on the "
+                    "page background."}
             return Response(
-                {"code": "low_contrast", "message":
-                 "This primary colour has low contrast on the page background. Confirm to publish.",
-                 "fields": {}}, status=status.HTTP_400_BAD_REQUEST)
-        t = _apply_theme(request, d["primary_hex"], d["accent_hex"], d.get("palette"), "update")
+                {"code": "low_contrast", "message": " ".join(msgs[i] for i in issues)
+                 + " Confirm to publish.", "fields": {}, "issues": issues},
+                status=status.HTTP_400_BAD_REQUEST)
+        t = _apply_theme(request, d["primary_hex"], d["accent_hex"], d.get("palette"), "update",
+                         d["background_hex"], d["text_hex"])
         return Response(_theme_payload(t))
 
 
@@ -185,7 +207,8 @@ class ThemeResetView(APIView):
 
     def post(self, request):
         sig = ThemePalette.objects.get(name="Signature", is_builtin=True)
-        t = _apply_theme(request, sig.primary_hex, sig.accent_hex, sig, "reset")
+        t = _apply_theme(request, sig.primary_hex, sig.accent_hex, sig, "reset",
+                         sig.background_hex, sig.text_hex)
         return Response(_theme_payload(t))
 
 

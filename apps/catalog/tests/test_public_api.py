@@ -101,6 +101,7 @@ def test_card_shape_badge_soldout_no_stock_leak(api_client, bras):  # CAT-05/13
     v = r["air-one"]["variants"]  # CAT-12 Quick Add data
     assert [x["size_label"] for x in v] == ["34B", "36C"] and all(x["in_stock"] for x in v)
     assert r["tube-one"]["variants"][0]["in_stock"] is False
+    assert all(x["sku"] and x["price"] for x in v)  # CAT-12: the cart line gets the real sku and price
 
 
 def test_draft_products_not_public(api_client):
@@ -129,7 +130,7 @@ def test_suggest_top_six_min_two_chars(api_client, db):  # CAT-10
         product(f"Lace Bra {i}")
     assert api_client.get("/api/v1/search/suggest/", {"q": "l"}).data == []
     r = api_client.get("/api/v1/search/suggest/", {"q": "lace"}).data
-    assert len(r) == 6 and {"name", "slug", "price", "image"} <= set(r[0])
+    assert len(r) == 6 and {"name", "slug", "price", "image", "category"} <= set(r[0])  # category: the dropdown reads it
 
 
 def test_size_charts(api_client):  # CAT-08

@@ -249,6 +249,10 @@ def test_edit_order_address_phone_note_logged_not_area_or_lines(owner):  # ORD-0
         orders.edit_order(o.id, owner, phone="123")
     with pytest.raises(ValidationError):
         orders.edit_order(o.id, owner, thana="")
+    with pytest.raises(ValidationError):  # §10 column limits: refused with a message, not a database error
+        orders.edit_order(o.id, owner, address_line="x" * 301)
+    with pytest.raises(ValidationError):
+        orders.edit_order(o.id, owner, district="d" * 81)
 
 
 def test_internal_note_is_a_same_status_entry(owner):  # decision 4

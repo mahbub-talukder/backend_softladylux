@@ -221,6 +221,8 @@ def _payment(order) -> Payment:
 
 
 EDITABLE = ("name", "phone", "district", "thana", "address_line", "note")
+# Column sizes of the Order model (§10): an over-long value is refused with a message, not a 500.
+EDIT_MAX = {"name": 150, "district": 80, "thana": 80, "address_line": 300, "note": 500}
 
 
 @transaction.atomic
@@ -244,6 +246,8 @@ def edit_order(order_id, user, **changes):
                 raise ValidationError({"phone": str(e)}) from None
         if k != "note" and not v:
             raise ValidationError({k: "This field is required."})
+        if len(v) > EDIT_MAX.get(k, 10_000):
+            raise ValidationError({k: f"Use at most {EDIT_MAX[k]} characters."})
         old = getattr(order, k)
         if old != v:
             diffs.append(f"{k}: {old!r} → {v!r}")

@@ -67,7 +67,8 @@ class PublicThemeView(PublicView):
     def get(self, request):
         def build():
             t = ThemeSettings.load()
-            return {"tokens": t.tokens, "primary": t.primary_hex, "accent": t.accent_hex}
+            return {"tokens": t.tokens, "primary": t.primary_hex, "accent": t.accent_hex,
+                    "background": t.background_hex, "text": t.text_hex}
 
         return Response(cached("public:theme", build))
 
