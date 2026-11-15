@@ -106,6 +106,17 @@ class SiteSettings(SingletonModel):
     mimsms_url = models.URLField(blank=True, default="https://api.mimsms.com/api/V2/SMS")
     sms_order_enabled = models.BooleanField(default=True)  # NTF-02: order-received SMS on/off
 
+    # CRR-01 (v1.7): Steadfast courier, configured only here (no env). Keys and the webhook token
+    # are write-only: never returned by any API, logged or audited.
+    steadfast_api_key = models.CharField(max_length=200, blank=True)
+    steadfast_secret_key = models.CharField(max_length=200, blank=True)
+    steadfast_webhook_token = models.CharField(max_length=200, blank=True)
+    steadfast_base_url = models.URLField(blank=True, default="https://portal.packzy.com/api/v1")
+    steadfast_auto_book = models.BooleanField(default=True)  # CRR-03
+    # CRR-06: set by a 401/403 from Steadfast; every courier call stops until the courier settings
+    # are saved again (Steadfast locks a client out for 60 minutes after 10 auth failures).
+    steadfast_keys_rejected = models.BooleanField(default=False)
+
     class Meta:
         verbose_name_plural = "site settings"
 

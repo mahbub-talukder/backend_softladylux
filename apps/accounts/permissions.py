@@ -24,6 +24,11 @@ CATALOGUE = [
     ("contact.manage", "Content", "Contact messages, newsletter export", False, False),
     ("settings.manage", "Settings", "Site settings (company, payments, fees, analytics ID)", False, True),
     ("theme.manage", "Settings", "Theme colours", False, True),
+    # CRR-12..CRR-14 (v1.7): Steadfast courier.
+    ("courier.view", "Orders", "Courier dashboard, Steadfast parcel lists and return requests",
+     True, False),
+    ("courier.manage", "Orders", "Book Steadfast parcels, bulk booking, pickups and returns",
+     False, True),
 ]
 CODES = [c[0] for c in CATALOGUE]
 DEFAULT_CODES = [c[0] for c in CATALOGUE if c[3]]
@@ -35,6 +40,7 @@ IMPLIES = {
     "payments.verify": "orders.view",
     "products.manage": "products.view",
     "inventory.adjust": "inventory.view",
+    "courier.manage": "courier.view",  # PRM-05 (v1.7)
 }
 
 

@@ -42,8 +42,8 @@ class OrderViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
         return [require(code)()]
 
     def get_queryset(self):
-        qs = Order.objects.select_related("payment", "user").prefetch_related(
-            "items", "logs__user")
+        qs = Order.objects.select_related("payment", "user", "shipment").prefetch_related(
+            "items", "logs__user", "courier_events")
         q = self.request.query_params
         if t := q.get("q", "").strip():  # ORD-07: order no., name, phone, TrxID
             qs = qs.filter(Q(number__icontains=t) | Q(name__icontains=t) | Q(phone__icontains=t)
@@ -62,6 +62,12 @@ class OrderViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
         if d := q.get("date_to"):
             qs = qs.filter(placed_at__lt=timezone.make_aware(datetime.combine(
                 datetime.fromisoformat(d).date() + timedelta(days=1), time.min)))
+        if att := q.get("attention"):  # CRR-09 (v1.7): "any" = every flagged parcel
+            qs = (qs.exclude(shipment__attention="").filter(shipment__isnull=False)
+                  if att == "any" else qs.filter(shipment__attention=att))
+        if q.get("courier") == "unbooked":  # CRR-07: Confirmed orders still to book
+            qs = qs.filter(status=OrderStatus.CONFIRMED).exclude(
+                shipment__consignment_id__isnull=False)
         if q.get("stale") in ("1", "true"):  # ORD-12
             hours = SiteSettings.load().stale_draft_hours
             qs = qs.filter(status=OrderStatus.DRAFT,

@@ -128,13 +128,40 @@ class AdminSettingsSerializer(serializers.ModelSerializer):
     seo_share_image = MediaRefField(allow_null=True, required=False)
     mimsms_api_key = serializers.CharField(write_only=True, allow_blank=True, required=False)
     mimsms_api_key_set = serializers.SerializerMethodField()
+    # CRR-01 (v1.7): Steadfast keys and webhook token are write-only, shown only as "set" flags.
+    steadfast_api_key = serializers.CharField(write_only=True, allow_blank=True, required=False,
+                                              max_length=200)
+    steadfast_secret_key = serializers.CharField(write_only=True, allow_blank=True,
+                                                 required=False, max_length=200)
+    steadfast_webhook_token = serializers.RegexField(
+        r"^[A-Za-z0-9._=-]*$", write_only=True, allow_blank=True, required=False, max_length=200,
+        error_messages={"invalid": "Use letters, digits and - _ . = only."})
+    steadfast_api_key_set = serializers.SerializerMethodField()
+    steadfast_secret_key_set = serializers.SerializerMethodField()
+    steadfast_webhook_token_set = serializers.SerializerMethodField()
 
     class Meta:
         model = SiteSettings
         exclude = ["created_at", "updated_at"]
+        read_only_fields = ["steadfast_keys_rejected"]
 
     def get_mimsms_api_key_set(self, obj):
         return bool(obj.mimsms_api_key)
+
+    def get_steadfast_api_key_set(self, obj):
+        return bool(obj.steadfast_api_key)
+
+    def get_steadfast_secret_key_set(self, obj):
+        return bool(obj.steadfast_secret_key)
+
+    def get_steadfast_webhook_token_set(self, obj):
+        return bool(obj.steadfast_webhook_token)
+
+    def update(self, instance, validated):
+        # CRR-06: saving any courier setting lifts the keys-rejected stop, so calls resume.
+        if any(k.startswith("steadfast_") for k in validated):
+            instance.steadfast_keys_rejected = False
+        return super().update(instance, validated)
 
     def validate_gtm_id(self, v):
         v = v.strip()

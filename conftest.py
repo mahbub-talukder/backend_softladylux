@@ -70,6 +70,17 @@ def sms_outbox(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_steadfast(monkeypatch):
+    """CRR (v1.7): Steadfast has no sandbox, so a real call would book a real parcel. Any test that
+    reaches the network layer without the `steadfast` fake fails loudly."""
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("A test tried to call the real Steadfast API.")
+
+    monkeypatch.setattr("apps.courier.steadfast.request", refuse)
+
+
+@pytest.fixture(autouse=True)
 def _tmp_media(settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path / "media"
 

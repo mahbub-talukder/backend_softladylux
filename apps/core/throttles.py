@@ -23,3 +23,5 @@ LoginThrottle = scoped("login")
 OtpIpThrottle = scoped("otp_ip")
 ForgotThrottle = scoped("forgot")
 SmsTestThrottle = scoped("sms_test")  # ACC-02: each test SMS costs credit
+CourierPingThrottle = scoped("courier_ping")  # CRR-02
+SteadfastWebhookThrottle = scoped("steadfast_webhook")  # CRR-08

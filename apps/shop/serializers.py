@@ -56,13 +56,25 @@ class CustomerOrderSerializer(serializers.ModelSerializer):
     payment_status = serializers.SerializerMethodField()
     timeline = serializers.SerializerMethodField()
     can_cancel = serializers.SerializerMethodField()
+    courier_steps = serializers.SerializerMethodField()  # CRR-16 (v1.7)
+    tracking_link = serializers.SerializerMethodField()  # CRR-16 (v1.7)
 
     class Meta:
         model = Order
         fields = ["number", "status", "status_label", "placed_at", "name", "phone", "email",
                   "area", "district", "thana", "address_line", "note", "subtotal", "coupon_code",
                   "coupon_discount", "delivery_fee", "total", "payment_method", "payment_status",
-                  "courier", "tracking_ref", "items", "timeline", "can_cancel"]
+                  "courier", "tracking_ref", "items", "timeline", "can_cancel", "courier_steps",
+                  "tracking_link"]
+
+    def get_courier_steps(self, o):
+        from apps.courier.serializers import customer_courier_steps
+
+        return customer_courier_steps(o)
+
+    def get_tracking_link(self, o):
+        ship = getattr(o, "shipment", None)
+        return ship.tracking_link if ship and ship.tracking_link else ""
 
     def get_payment_status(self, o):
         pay = getattr(o, "payment", None)
@@ -114,11 +126,23 @@ class AdminOrderRowSerializer(serializers.ModelSerializer):
     trx_id = serializers.CharField(source="payment.trx_id", default=None, read_only=True)
     item_count = serializers.SerializerMethodField()
     is_stale = serializers.SerializerMethodField()
+    # CRR-09 (v1.7): Steadfast status and flag columns in the order list.
+    courier_status = serializers.CharField(source="shipment.courier_status", default="",
+                                           read_only=True)
+    attention = serializers.CharField(source="shipment.attention", default="", read_only=True)
+    attention_label = serializers.CharField(source="shipment.get_attention_display", default="",
+                                            read_only=True)
+    courier_booked = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = ["id", "number", "status", "placed_at", "name", "phone", "area",
-                  "payment_method", "payment_status", "trx_id", "total", "item_count", "is_stale"]
+                  "payment_method", "payment_status", "trx_id", "total", "item_count", "is_stale",
+                  "courier_status", "attention", "attention_label", "courier_booked"]
+
+    def get_courier_booked(self, o):
+        ship = getattr(o, "shipment", None)
+        return bool(ship and ship.is_booked)
 
     def get_item_count(self, o):
         return sum(i.quantity for i in o.items.all())
@@ -130,6 +154,8 @@ class AdminOrderRowSerializer(serializers.ModelSerializer):
 class AdminOrderSerializer(serializers.ModelSerializer):
     items = AdminItemSerializer(many=True, read_only=True)
     total_weight_grams = serializers.IntegerField(read_only=True)  # CAT-26: order detail + slip
+    shipment = serializers.SerializerMethodField()  # CRR-05/09 (v1.7): courier block
+    courier_events = serializers.SerializerMethodField()  # CRR-10 (v1.7)
     payment = PaymentSerializer(read_only=True)
     logs = LogSerializer(many=True, read_only=True)
     is_stale = serializers.SerializerMethodField()
@@ -145,6 +171,17 @@ class AdminOrderSerializer(serializers.ModelSerializer):
 
     def get_user_name(self, o):
         return str(o.user) if o.user else None
+
+    def get_shipment(self, o):
+        from apps.courier.serializers import ShipmentSerializer
+
+        ship = getattr(o, "shipment", None)
+        return ShipmentSerializer(ship).data if ship else None
+
+    def get_courier_events(self, o):
+        from apps.courier.serializers import CourierEventSerializer
+
+        return CourierEventSerializer(o.courier_events.all(), many=True).data
 
 
 class CouponSerializer(serializers.ModelSerializer):
