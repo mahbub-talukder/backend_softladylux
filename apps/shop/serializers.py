@@ -34,6 +34,13 @@ class ItemSerializer(serializers.ModelSerializer):
                   "quantity", "line_total"]
 
 
+class AdminItemSerializer(ItemSerializer):
+    """CAT-26 (v1.7): staff see each line's weight snapshot; the customer payload is unchanged."""
+
+    class Meta(ItemSerializer.Meta):
+        fields = [*ItemSerializer.Meta.fields, "weight_grams"]
+
+
 def customer_timeline(order):
     """Only real status changes, in plain wording. Same-status entries are staff-only."""
     return [{"status": log.to_status, "label": CUSTOMER_STATUS_TEXT[log.to_status],
@@ -121,7 +128,8 @@ class AdminOrderRowSerializer(serializers.ModelSerializer):
 
 
 class AdminOrderSerializer(serializers.ModelSerializer):
-    items = ItemSerializer(many=True, read_only=True)
+    items = AdminItemSerializer(many=True, read_only=True)
+    total_weight_grams = serializers.IntegerField(read_only=True)  # CAT-26: order detail + slip
     payment = PaymentSerializer(read_only=True)
     logs = LogSerializer(many=True, read_only=True)
     is_stale = serializers.SerializerMethodField()
