@@ -127,7 +127,7 @@ def test_seed_demo_reset_hides_demo_products_and_keeps_real_ones(demo):
     real.refresh_from_db()
     assert real.is_active is True  # the owner's own product is untouched
     assert CarouselSlide.objects.count() == 0
-    assert Banner.objects.filter(is_active=True).count() == 0 and Banner.objects.count() == 2
+    assert Banner.objects.filter(is_active=True).count() == 0 and Banner.objects.count() == 4
     assert not Coupon.objects.filter(code="WELCOME10").exists()
 
 

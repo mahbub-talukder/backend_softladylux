@@ -188,8 +188,9 @@ class BannerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Banner
-        exclude = ["created_at", "updated_at"]
-        read_only_fields = ["placement"]  # WEB-02: only the two fixed placements
+        exclude = ["created_at"]
+        # WEB-02: fixed placements. updated_at versions the popup (WEB-11: shown again when changed)
+        read_only_fields = ["placement", "updated_at"]
 
 
 class VideoSerializer(serializers.ModelSerializer):

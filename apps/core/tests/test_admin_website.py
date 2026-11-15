@@ -78,16 +78,21 @@ def test_max_eight_active_slides(as_user, owner, media):  # WEB-01
                    format="json").status_code == 200  # editing an active one is fine
 
 
-def test_banners_fixed_two_edit_only(as_user, owner, media):  # WEB-02
+def test_banners_fixed_placements_edit_only(as_user, owner, media):  # WEB-02 / WEB-11 (v1.6)
     c = as_user(owner)
     rows = c.get(f"{A}/website/banners/").data
-    assert sorted(b["placement"] for b in rows) == ["home_offer", "home_promo"]
+    assert sorted(b["placement"] for b in rows) == ["home_offer", "home_promo", "popup", "signature"]
+    only = c.get(f"{A}/website/banners/", {"placement": "popup"}).data
+    assert [b["placement"] for b in only] == ["popup"] and "updated_at" in only[0]
+    two = c.get(f"{A}/website/banners/", {"placement": "home_promo, signature"}).data
+    assert sorted(b["placement"] for b in two) == ["home_promo", "signature"]
     b = Banner.objects.get(placement="home_promo")
     r = c.patch(f"{A}/website/banners/{b.id}/", {"media": media["id"], "is_active": True,
                                                  "placement": "hacked"}, format="json")
     assert r.status_code == 200 and r.data["placement"] == "home_promo"
     assert c.get(f"{A}/website/banners/{b.id}/").status_code == 200
-    assert c.put(f"{A}/website/banners/{b.id}/", {"heading": "H"}, format="json").status_code == 200
+    assert c.put(f"{A}/website/banners/{b.id}/", {"heading": "H", "button_label": "Shop now"},
+                 format="json").data["button_label"] == "Shop now"
     assert c.post(f"{A}/website/banners/", {}, format="json").status_code == 405
     assert c.delete(f"{A}/website/banners/{b.id}/").status_code == 405
 

@@ -254,7 +254,8 @@ class ProductRowSerializer(serializers.ModelSerializer):
         model = Product
         fields = ["id", "name", "slug", "sku_prefix", "category", "category_name", "subcategory",
                   "subcategory_name", "uom", "price", "compare_at_price", "discount_pct", "stock",
-                  "is_active", "is_new", "is_signature", "is_offer", "image"]
+                  "is_active", "is_new", "is_signature", "is_offer", "is_bestseller",
+                  "image"]
 
     def get_image(self, obj):
         img = next(iter(obj.images.all()), None)

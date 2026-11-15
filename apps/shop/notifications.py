@@ -1,6 +1,6 @@
-"""Emails. SRS NTF-02/03/06, THM-11: text + HTML templates in the repository, primary colour
-inlined from the saved theme; sent through Django-Q2 with retries; a failure is logged and
-never blocks the customer's action."""
+"""Emails and the order-received SMS. SRS NTF-02/03/06 (SMS: amendment v1.6), THM-11: text + HTML
+templates in the repository, primary colour inlined from the saved theme; sent through Django-Q2
+with retries; a failure is logged and never blocks the customer's action."""
 
 import logging
 
@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 
+from apps.core import sms
 from apps.core.models import SiteSettings, ThemeSettings
 
 log = logging.getLogger(__name__)
@@ -62,6 +63,30 @@ def send_status_email(order_id, from_status, to_status):
     _send(f"Update on your order {order.number}", "status_changed", order.email, ctx)
 
 
+def order_sms_text(order, company: str) -> str:
+    """NTF-02 (v1.6): one ASCII SMS part (<= 160 chars), no personal data beyond the order."""
+    total = f"{order.total:,.2f}".removesuffix(".00")
+    name = (company or "SoftLadyLux").strip()[:30]
+    return (f"{name}: Order {order.number} received. Total Tk {total}. "
+            "We will call you to confirm. Thank you!")
+
+
+def send_order_sms(order_id):
+    """Task: order-received SMS to the customer (NTF-02, v1.6). Skipped when switched off in
+    Admin → Settings → SMS. Raises SmsError so the queue retries (3 attempts)."""
+    from .models import Order
+
+    site = SiteSettings.load()
+    if not site.sms_order_enabled:
+        return
+    order = Order.objects.get(pk=order_id)
+    try:
+        sms.send_sms(order.phone, order_sms_text(order, site.company_name))
+    except sms.SmsError as e:
+        log.warning("Order SMS for %s failed: %s", order.number, e)
+        raise
+
+
 def _enqueue(func_path, *args):
     """Fire-and-forget through the Django-Q2 queue; any failure is logged only."""
     try:
@@ -75,6 +100,7 @@ def _enqueue(func_path, *args):
 
 def queue_order_received(order_id):
     _enqueue("apps.shop.notifications.send_order_received", order_id)
+    _enqueue("apps.shop.notifications.send_order_sms", order_id)  # NTF-02 (v1.6)
 
 
 def queue_status_email(order_id, from_status, to_status):

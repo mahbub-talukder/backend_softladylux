@@ -7,17 +7,16 @@ from apps.accounts.models import Otp, Role, User
 from apps.shop.checkout import place_order
 from apps.shop.tests.helpers import configure_site, one_variant, payload
 
-from .helpers import REG, age_otps, catch_codes, stop
+from .helpers import REG, age_otps
 
 pytestmark = pytest.mark.django_db
 B = "/api/v1"
 
 
 @pytest.fixture
-def codes():
-    h = catch_codes()
-    yield h.codes
-    stop(h)
+def codes(sms_outbox):
+    """OTP codes from the SMS the test sent (root conftest `sms_outbox`)."""
+    return sms_outbox.codes
 
 
 @pytest.fixture
@@ -54,7 +53,7 @@ def test_code_is_stored_hashed_never_plain(api_client, codes, capture):
     register(api_client, capture)
     o = Otp.objects.get()
     assert codes[0] not in o.code_hash and len(o.code_hash) == 64
-    assert o.sms_status == "sent"  # queued task ran (sync) and the fake provider "sent" it
+    assert o.sms_status == "sent"  # queued task ran (sync) and the SMS was "sent" (outbox)
 
 
 def test_wrong_codes_lock_after_five_attempts_scenario_12(api_client, codes, capture):
@@ -166,15 +165,8 @@ def test_verify_without_registration(api_client):
     assert r.status_code == 400
 
 
-def test_otp_status_reports_sms_failure(api_client, capture, monkeypatch):  # ACC-02
-    from apps.core.sms import fake
-
-    def boom(self, phone, message):
-        from apps.core.sms import SmsError
-
-        raise SmsError("gateway down")
-
-    monkeypatch.setattr(fake.FakeSmsProvider, "send", boom)
+def test_otp_status_reports_sms_failure(api_client, capture, sms_outbox):  # ACC-02
+    sms_outbox.fail = "gateway down"
     try:
         register(api_client, capture)
     except Exception:  # noqa: BLE001 - the sync test queue re-raises; real queue retries

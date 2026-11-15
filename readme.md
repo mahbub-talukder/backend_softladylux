@@ -38,5 +38,5 @@ Test a restore on a copy before you need it. The full migration and restore runb
 
 ## Notes
 - Auth: JWT in HTTP-only cookies with CSRF checks (ARC-06). CORS origins from `CORS_ALLOWED_ORIGINS`.
-- SMS: `SMS_PROVIDER=fake` (default) only logs OTPs. MiMSMS is available behind the same interface (`SMS_PROVIDER=mimsms`); its HTTP details are configuration (see `.env.example`) and it is unverified until a real account exists.
+- SMS: MiMSMS JSON API (`apps/core/sms`), configured in Admin → Settings → SMS (API key, username, sender name, URL). There is no fake sender: without those settings OTP and order SMS fail with "SMS is not configured", and in development every SMS is real (costs credit). Tests replace the sender with the `sms_outbox` fixture.
 - Comments cite SRS requirement IDs; see `../docs/TRACEABILITY.md`.

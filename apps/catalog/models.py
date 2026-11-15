@@ -80,6 +80,7 @@ class Product(TimeStampedModel):
     is_new = models.BooleanField(default=False)
     is_signature = models.BooleanField(default=False)
     is_offer = models.BooleanField(default=False)
+    is_bestseller = models.BooleanField(default=False)  # CAT-23 (v1.6): home "Best seller" tab
     tags = models.JSONField(default=list, blank=True)
     seo_title = models.CharField(max_length=120, blank=True)
     seo_description = models.CharField(max_length=300, blank=True)

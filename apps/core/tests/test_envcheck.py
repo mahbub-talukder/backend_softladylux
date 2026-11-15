@@ -12,8 +12,7 @@ GOOD = {
     "DEBUG": "false", "ALLOWED_HOSTS": "shop.example.com", "ADMIN_URL": "s3cret-panel-8f2a1c",
     "CSRF_TRUSTED_ORIGINS": "https://shop.example.com", "COOKIE_SECURE": "true",
     "POSTGRES_PASSWORD": "pg-pass-Qw8z", "DATABASE_URL": "postgres://u:pg-pass-Qw8z@db:5432/x",
-    "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend", "SMS_PROVIDER": "mimsms",
-    "MIMSMS_ENDPOINT": "https://sms.example.test",
+    "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
 }
 
 
@@ -45,14 +44,9 @@ def test_missing_values_are_errors_not_crashes():
 
 def test_warnings_do_not_block():
     errors, warnings = problems({**GOOD, "EMAIL_BACKEND": "django.core.mail.backends.console."
-                                 "EmailBackend", "SMS_PROVIDER": "fake", "HSTS_SECONDS": "0",
+                                 "EmailBackend", "HSTS_SECONDS": "0",
                                  "SSL_REDIRECT": "false"})
-    assert errors == [] and len(warnings) == 4
-
-
-def test_mimsms_without_env_endpoint_is_only_a_warning():
-    errors, warnings = problems({**GOOD, "MIMSMS_ENDPOINT": ""})
-    assert errors == [] and any("MIMSMS_ENDPOINT" in w for w in warnings)
+    assert errors == [] and len(warnings) == 3
 
 
 def test_cli_exit_codes(monkeypatch, capsys):

@@ -60,11 +60,6 @@ def problems(env: Mapping[str, str]) -> tuple[list[str], list[str]]:
         warnings.append("HSTS is disabled (HSTS_SECONDS=0).")
     if "console" in g("EMAIL_BACKEND", "console"):
         warnings.append("EMAIL_BACKEND is the console backend: no email will be sent.")
-    if g("SMS_PROVIDER", "fake") == "fake":
-        warnings.append("SMS_PROVIDER=fake: OTP codes are only logged, customers get no SMS.")
-    elif g("SMS_PROVIDER") == "mimsms" and not g("MIMSMS_ENDPOINT"):
-        warnings.append("SMS_PROVIDER=mimsms but MIMSMS_ENDPOINT is empty in the environment; "
-                        "make sure Admin → Settings → SMS is filled in.")
     return errors, warnings
 
 

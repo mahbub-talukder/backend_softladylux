@@ -39,6 +39,36 @@ def _clear_cache():
     cache.clear()
 
 
+class SmsOutbox:
+    """Records every SMS instead of sending it. `fail = "reason"` makes the next sends fail."""
+
+    def __init__(self):
+        self.sent: list[tuple[str, str]] = []  # (phone, message)
+        self.codes: list[str] = []  # 6-digit codes found in the messages (OTP tests)
+        self.fail: str | None = None
+
+    def send(self, phone, message):
+        import re
+
+        from apps.core.sms import SmsError
+
+        if self.fail:
+            raise SmsError(self.fail)
+        self.sent.append((phone, message))
+        if m := re.search(r"\b(\d{6})\b", message):
+            self.codes.append(m.group(1))
+        return "TEST-TRXN"
+
+
+@pytest.fixture(autouse=True)
+def sms_outbox(monkeypatch):
+    """ACC-02: no test ever reaches the real SMS gateway (apps/core/tests/test_sms.py tests the
+    real `send_sms` against a patched urlopen)."""
+    box = SmsOutbox()
+    monkeypatch.setattr("apps.core.sms.send_sms", box.send)
+    return box
+
+
 @pytest.fixture(autouse=True)
 def _tmp_media(settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path / "media"

@@ -4,7 +4,7 @@ PHONE_RE = re.compile(r"^01[3-9]\d{8}$")
 
 
 def normalize_phone(value: str | None) -> str | None:
-    """Normalise a Bangladeshi mobile number to 01XXXXXXXXX (+880 / 880 accepted).
+    r"""Normalise a Bangladeshi mobile number to 01XXXXXXXXX (+880 / 880 accepted).
 
     SRS ACC-14 (stored normalised, unique system-wide), §10 Validation rules
     (pattern ^01[3-9]\d{8}$), CHK-01 (phone validated at checkout).

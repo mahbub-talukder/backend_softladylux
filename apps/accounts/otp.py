@@ -16,7 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import Throttled, ValidationError
 
-from apps.core.sms import SmsError, get_sms_provider
+from apps.core import sms
 
 from .models import Otp, SmsStatus
 
@@ -81,10 +81,10 @@ def _queue(otp_id: int, phone: str, message: str):
 
 
 def deliver(otp_id: int, phone: str, message: str):
-    """Django-Q2 task: send through the configured provider; raise so the queue retries."""
+    """Django-Q2 task: send through MiMSMS (ACC-02); raise so the queue retries."""
     try:
-        get_sms_provider().send(phone, message)
-    except SmsError:
+        sms.send_sms(phone, message)
+    except sms.SmsError:
         Otp.objects.filter(pk=otp_id).update(sms_status=SmsStatus.FAILED)
         log.warning("OTP SMS %s failed", otp_id)
         raise

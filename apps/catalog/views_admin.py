@@ -137,7 +137,7 @@ class ProductViewSet(AuditedMixin, viewsets.ModelViewSet):
             qs.update(category=cat, subcategory=sub)
         elif op == "set_flag":
             flag = request.data.get("flag")
-            if flag not in ("is_new", "is_signature", "is_offer"):
+            if flag not in ("is_new", "is_signature", "is_offer", "is_bestseller"):  # CAT-23
                 raise serializers.ValidationError({"flag": "Unknown flag."})
             qs.update(**{flag: bool(request.data.get("value", True))})
         else:

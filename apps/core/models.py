@@ -98,15 +98,13 @@ class SiteSettings(SingletonModel):
     # SET-09 analytics (empty = disabled)
     gtm_id = models.CharField(max_length=20, blank=True)
 
-    # ACC-02 SMS provider credentials. Env wins if set; never returned by any API (write-only).
+    # ACC-02 / NTF-02 (amendment v1.6): MiMSMS JSON API, configured only here (no env, no fake
+    # sender). The API key is write-only: never returned by any API, logged or audited.
     mimsms_api_key = models.CharField(max_length=200, blank=True)
-    mimsms_sender_id = models.CharField(max_length=40, blank=True)
-    # The MiMSMS HTTP API details are not in the SRS, so endpoint, method and parameter names are
-    # configured here (or in env) instead of being guessed (decision: configurable endpoint).
-    mimsms_endpoint = models.URLField(blank=True)
-    mimsms_method = models.CharField(max_length=4, blank=True, default="POST")
-    mimsms_params = models.JSONField(default=dict, blank=True)  # {"api_key": "...", "sender": ...}
-    mimsms_success_contains = models.CharField(max_length=80, blank=True)
+    mimsms_username = models.CharField(max_length=120, blank=True)
+    mimsms_sender_name = models.CharField(max_length=40, blank=True)  # numeric sender, e.g. 8809…
+    mimsms_url = models.URLField(blank=True, default="https://api.mimsms.com/api/V2/SMS")
+    sms_order_enabled = models.BooleanField(default=True)  # NTF-02: order-received SMS on/off
 
     class Meta:
         verbose_name_plural = "site settings"
@@ -161,14 +159,18 @@ class CarouselSlide(TimeStampedModel):
 
 
 class Banner(TimeStampedModel):
-    """SRS WEB-02: exactly two fixed placements; other placements are not editable in v1."""
+    """SRS WEB-02 (v1.6): four fixed placements, edit only. `signature` is the big Signature
+    collection panel; `popup` is the Promotional Ads Panel (WEB-11)."""
 
-    PLACEMENTS = [("home_promo", "Home promo"), ("home_offer", "Home offer")]
-    placement = models.CharField(max_length=12, choices=PLACEMENTS, unique=True)
+    PLACEMENTS = [("home_promo", "Home promo"), ("home_offer", "Home offer"),
+                  ("signature", "Signature collection"), ("popup", "Promotional popup")]
+    HOME_ROW = ("home_promo", "home_offer")  # the two side-by-side home banners
+    placement = models.CharField(max_length=20, choices=PLACEMENTS, unique=True)
     media = models.ForeignKey(MediaAsset, null=True, blank=True, on_delete=models.SET_NULL,
                               related_name="+")
     heading = models.CharField(max_length=120, blank=True)
     text = models.CharField(max_length=240, blank=True)
+    button_label = models.CharField(max_length=40, blank=True)
     link = models.CharField(max_length=300, blank=True)
     is_active = models.BooleanField(default=False)
 

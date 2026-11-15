@@ -143,11 +143,13 @@ def test_home_sections_fill_from_flags(api_client, db):  # WEB-03/06
     product("Sig", is_signature=True)
     product("Deal", compare="1500")
     product("Fresh", is_new=True)
+    product("Hit", is_bestseller=True)  # CAT-23 (v1.6)
     h = api_client.get("/api/v1/home/").data
+    assert [p["slug"] for p in h["bestsellers"]] == ["hit"]
     assert [p["slug"] for p in h["signature"]] == ["sig"]
     assert [p["slug"] for p in h["offers"]] == ["deal"]
     assert [p["slug"] for p in h["new_arrivals"]] == ["fresh"]
-    assert len(h["categories"]) == 8 and Product.objects.count() == 3
+    assert len(h["categories"]) == 8 and Product.objects.count() == 4
 
 
 def test_listing_query_count_is_flat(api_client, bras, django_assert_max_num_queries):

@@ -25,6 +25,7 @@ urlpatterns = [
     path("me/", acc.AdminMeView.as_view(), name="admin-me"),
     path("permissions/", acc.PermissionCatalogueView.as_view(), name="admin-permissions"),
     path("settings/", v.AdminSettingsView.as_view(), name="admin-settings"),
+    path("settings/sms-test/", v.SmsTestView.as_view(), name="admin-sms-test"),
     path("theme/", v.AdminThemeView.as_view(), name="admin-theme"),
     path("theme/reset/", v.ThemeResetView.as_view(), name="admin-theme-reset"),
     path("media/", v.MediaUploadView.as_view(), name="admin-media"),

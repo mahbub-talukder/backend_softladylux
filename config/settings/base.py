@@ -97,7 +97,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "cart_validate": "60/min", "coupon_validate": "20/min", "checkout": "10/min",
         "track": "20/min", "contact": "5/hour",
-        "login": "20/hour", "otp_ip": "30/hour", "forgot": "10/hour",
+        "login": "20/hour", "otp_ip": "30/hour", "forgot": "10/hour", "sms_test": "10/hour",
     },
 }
 
@@ -147,16 +147,7 @@ Q_CLUSTER = {
     "catch_up": False,
 }
 
-# SMS provider (pluggable). "fake" only logs the OTP.
-# SRS ACC-02 / §15: credentials only from env (or Settings in M4), never hard-coded.
-SMS_PROVIDER = env("SMS_PROVIDER", default="fake")
-MIMSMS_API_KEY = env("MIMSMS_API_KEY", default="")
-MIMSMS_SENDER_ID = env("MIMSMS_SENDER_ID", default="")
-# MiMSMS HTTP API details are configuration, never guessed (see apps/core/sms/mimsms.py).
-MIMSMS_ENDPOINT = env("MIMSMS_ENDPOINT", default="")
-MIMSMS_METHOD = env("MIMSMS_METHOD", default="")
-MIMSMS_PARAMS = env("MIMSMS_PARAMS", default="")  # JSON map of parameter names
-MIMSMS_SUCCESS_CONTAINS = env("MIMSMS_SUCCESS_CONTAINS", default="")
+# SMS: MiMSMS settings live in Admin → Settings → SMS only (SRS ACC-02, amendment v1.6).
 
 LOGGING = {
     "version": 1,

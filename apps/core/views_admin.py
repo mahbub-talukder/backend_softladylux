@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsOwner, require
 
-from . import audit, cache, theme
+from . import audit, cache, sms, theme
 from .models import (
     HOME_SECTIONS,
     Announcement,
@@ -25,6 +25,7 @@ from .models import (
     TrustItem,
     Video,
 )
+from .phone import normalize_phone
 from .serializers import (
     AdminSettingsSerializer,
     AnnouncementSerializer,
@@ -36,6 +37,7 @@ from .serializers import (
     TrustItemSerializer,
     VideoSerializer,
 )
+from .throttles import SmsTestThrottle
 
 
 class AdminSettingsView(APIView):
@@ -59,6 +61,31 @@ class AdminSettingsView(APIView):
                   {k: v[0] for k, v in keep.items()}, {k: v[1] for k, v in keep.items()})
         cache.invalidate()
         return Response(after)
+
+
+class SmsTestView(APIView):
+    """ACC-02 (amendment v1.6): Admin → Settings → SMS "Send test SMS". Sends synchronously with the
+    saved settings and returns the gateway's answer, so the owner can check the setup. Audited
+    (number only, never the key) and rate-limited, because every SMS costs credit."""
+
+    permission_classes = [require("settings.manage")]
+    throttle_classes = [SmsTestThrottle]
+
+    def post(self, request):
+        try:
+            phone = normalize_phone(request.data.get("phone"))
+        except ValueError as e:
+            raise serializers.ValidationError({"phone": str(e)}) from None
+        if not phone:
+            raise serializers.ValidationError({"phone": "Enter a mobile number."})
+        name = SiteSettings.load().company_name or "SoftLadyLux"
+        try:
+            trxn = sms.send_sms(phone, f"{name}: test SMS from Admin settings. SMS is working.")
+        except sms.SmsError as e:
+            audit.log(request, "sms_test", "SiteSettings", 1, None, {"phone": phone, "ok": False})
+            return Response({"ok": False, "detail": str(e)})  # shown inline, not as an error
+        audit.log(request, "sms_test", "SiteSettings", 1, None, {"phone": phone, "ok": True})
+        return Response({"ok": True, "detail": f"Sent (transaction {trxn or 'n/a'})."})
 
 
 class HomeSectionsView(APIView):
@@ -295,12 +322,18 @@ class SlideViewSet(WebsiteViewSet):
 
 
 class BannerViewSet(WebsiteViewSet):
-    """WEB-02: two fixed placements, edit only (no create/delete)."""
+    """WEB-02 / WEB-11: fixed placements, edit only (no create/delete).
+    `?placement=a,b` limits the list, so each admin tab shows only its own banners."""
 
     serializer_class = BannerSerializer
-    queryset = Banner.objects.all()
     audit_name = "Banner"
     http_method_names = ["get", "put", "patch", "head", "options"]
+
+    def get_queryset(self):
+        qs = Banner.objects.order_by("id")
+        if self.action == "list" and (p := self.request.query_params.get("placement")):
+            qs = qs.filter(placement__in=[x.strip() for x in p.split(",") if x.strip()])
+        return qs
 
 
 class VideoViewSet(WebsiteViewSet):

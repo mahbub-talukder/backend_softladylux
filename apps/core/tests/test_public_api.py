@@ -12,7 +12,8 @@ ADMIN = "/api/v1/admin"
 def test_public_settings_hides_internal_fields(api_client):  # SET-06
     d = api_client.get("/api/v1/settings/").data
     assert d["company_name"] == "SoftLadyLux" and "delivery_fee_inside_dhaka" in d
-    for hidden in ("mimsms_api_key", "mimsms_sender_id", "stale_draft_hours",
+    for hidden in ("mimsms_api_key", "mimsms_username", "mimsms_sender_name", "mimsms_url",
+                   "sms_order_enabled", "stale_draft_hours",
                    "low_stock_threshold", "order_number_prefix"):
         assert hidden not in d
 
@@ -40,6 +41,26 @@ def test_home_empty_then_filled(api_client):  # WEB-06
     assert [s["heading"] for s in d["carousel"]] == ["Hi"]
     assert len(d["videos"]) == 1 and len(d["announcements"]) == 1
     assert [b["placement"] for b in d["banners"]] == ["home_promo"]
+    assert d["popup"] is None and d["signature_banner"] is None
+
+
+def test_home_popup_and_signature_banner(api_client):  # WEB-02 / WEB-11 (v1.6)
+    from apps.core import cache
+
+    m = MediaAsset.objects.create(file="x.png", kind="banner", alt_text="a")
+    Banner.objects.filter(placement="popup").update(media=m, heading="Eid sale", is_active=True,
+                                                     button_label="Shop", link="/shop/offers")
+    Banner.objects.filter(placement="signature").update(media=m, heading="Lace", is_active=True)
+    cache.invalidate()
+    d = api_client.get("/api/v1/home/").data
+    assert d["popup"]["heading"] == "Eid sale" and d["popup"]["button_label"] == "Shop"
+    assert d["popup"]["updated_at"] and d["signature_banner"]["heading"] == "Lace"
+    assert d["banners"] == []  # the new placements never leak into the home banner row
+    Banner.objects.filter(placement="popup").update(is_active=False)  # off = not shown
+    Banner.objects.filter(placement="signature").update(media=None)  # no image = fallback panel
+    cache.invalidate()
+    d = api_client.get("/api/v1/home/").data
+    assert d["popup"] is None and d["signature_banner"] is None
 
 
 def test_home_shows_at_most_8_slides(api_client):  # WEB-01

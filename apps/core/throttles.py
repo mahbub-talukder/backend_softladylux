@@ -22,3 +22,4 @@ ContactThrottle = scoped("contact")
 LoginThrottle = scoped("login")
 OtpIpThrottle = scoped("otp_ip")
 ForgotThrottle = scoped("forgot")
+SmsTestThrottle = scoped("sms_test")  # ACC-02: each test SMS costs credit

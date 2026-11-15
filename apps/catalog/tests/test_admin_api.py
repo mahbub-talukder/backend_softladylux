@@ -205,6 +205,9 @@ def test_bulk_actions(admin):  # CAT-15, CAT-21
     assert admin.post(url, {"ids": [a.id, b.id], "action": "set_flag", "flag": "is_new"},
                       format="json").status_code == 200
     assert Product.objects.filter(is_new=True).count() == 2
+    assert admin.post(url, {"ids": [b.id], "action": "set_flag", "flag": "is_bestseller"},
+                      format="json").status_code == 200  # CAT-23 (v1.6)
+    assert list(Product.objects.filter(is_bestseller=True)) == [b]
     assert admin.post(url, {"ids": [a.id], "action": "set_flag", "flag": "x"}, format="json").status_code == 400
     bras = Category.objects.get(slug="bras")
     assert admin.post(url, {"ids": [a.id], "action": "set_category", "category": bras.id},

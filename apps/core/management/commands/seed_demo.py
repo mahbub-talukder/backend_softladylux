@@ -25,9 +25,9 @@ SUBS = {"bras": ["Maternity Bra", "Air Bra", "Tube Bra"]}
 # (name, category slug, sub-category slug, price, compare-at, flags, sizes, colours)
 PRODUCTS = [
     ("Silk-Touch Plunge Bra", "bras", "air-bra", "2450", None, dict(is_new=True), ["34B", "36C"], ["Nude", "Black"]),
-    ("Contour Balconette Bra", "bras", "tube-bra", "2750", "3450", dict(is_offer=True), ["34B", "36B"], ["Rose"]),
+    ("Contour Balconette Bra", "bras", "tube-bra", "2750", "3450", dict(is_offer=True, is_bestseller=True), ["34B", "36B"], ["Rose"]),
     ("Wireless Comfort Bralette", "bras", "maternity-bra", "1990", "2490", dict(is_offer=True, is_signature=True), ["S", "M"], ["Nude", "Rose"]),
-    ("Seamless Brief", "panties", None, "690", None, dict(is_new=True), ["S", "M", "L"], ["Nude", "Black"]),
+    ("Seamless Brief", "panties", None, "690", None, dict(is_new=True, is_bestseller=True), ["S", "M", "L"], ["Nude", "Black"]),
     ("Lace Bralette & Brief Set", "lingerie-sets", None, "3290", None, dict(is_signature=True, is_new=True), ["S", "M"], ["Rosewood"]),
     ("Sculpt Shaper", "shapewear", None, "2190", "2690", dict(is_signature=True, is_offer=True), ["M", "L"], ["Nude"]),
     ("Satin Sleep Shirt", "sleepwear", None, "2890", "3290", dict(is_offer=True, is_signature=True), ["S", "M", "L"], ["Ivory"]),
@@ -213,7 +213,7 @@ class Command(BaseCommand):
             existing = Product.objects.filter(name=name, collection="Demo").first()
             if existing or Product.objects.filter(name=name).exists():
                 if existing:  # re-seeding brings hidden demo products back and refreshes their flags
-                    for k in ("is_new", "is_signature", "is_offer"):
+                    for k in ("is_new", "is_signature", "is_offer", "is_bestseller"):
                         setattr(existing, k, flags.get(k, False))
                     existing.is_active = True
                     existing.save()

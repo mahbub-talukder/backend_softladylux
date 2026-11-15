@@ -73,6 +73,11 @@ class PublicThemeView(PublicView):
         return Response(cached("public:theme", build))
 
 
+def _one(qs, placement):
+    b = qs.filter(placement=placement).first()
+    return BannerSerializer(b).data if b else None
+
+
 class HomeView(PublicView):
     """WEB-01..08: fixed home layout content; each block is on/off (WEB-06).
     `categories` stays empty until the catalogue arrives in M2 (WEB-03)."""
@@ -82,6 +87,7 @@ class HomeView(PublicView):
             # WEB-06: a section switched off in admin is skipped here, not just hidden, so it costs
             # nothing; the whole payload is cached (cache.invalidate runs on every admin save).
             on = {k: SiteSettings.load().home_sections.get(k, True) for k, _ in HOME_SECTIONS}
+            live = Banner.objects.filter(is_active=True, media__isnull=False)
             return {
                 "sections": on,
                 "announcements": AnnouncementSerializer(
@@ -90,12 +96,17 @@ class HomeView(PublicView):
                     CarouselSlide.objects.filter(is_active=True)[:8],  # WEB-01: max 8
                     many=True).data if on["carousel"] else [],
                 "banners": BannerSerializer(
-                    Banner.objects.filter(is_active=True, media__isnull=False),
+                    live.filter(placement__in=Banner.HOME_ROW),
                     many=True).data if on["banners"] else [],
+                # WEB-02 (v1.6): big Signature panel image; WEB-11: promotional popup
+                "signature_banner": _one(live, "signature") if on["signature"] else None,
+                "popup": _one(live, "popup"),
                 "categories": _categories() if on["categories"] else [],
                 "new_arrivals": _cards(services.new_arrivals_q(), 8) if on["new_arrivals"] else [],
                 "signature": _cards(Q(is_signature=True), 6) if on["signature"] else [],
                 "offers": (_cards(services.offers_q(), 8) if on["offers"] else []),
+                # CAT-23 (v1.6): hand-picked best sellers, a tab of the Offers section
+                "bestsellers": (_cards(Q(is_bestseller=True), 8) if on["offers"] else []),
                 "trust": TrustItemSerializer(
                     TrustItem.objects.filter(is_active=True),
                     many=True).data if on["trust"] else [],
