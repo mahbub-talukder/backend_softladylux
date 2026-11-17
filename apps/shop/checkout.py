@@ -175,7 +175,8 @@ def place_order(data: dict, user=None, idempotency_key=None) -> tuple[Order, boo
             OrderItem.objects.bulk_create([OrderItem(
                 order=order, variant=v, product_name=v.product.name,
                 variant_label=" / ".join(x for x in (v.color_name, v.size_label) if x),
-                sku=v.sku, unit_price=price, quantity=qty, line_total=price * qty)
+                sku=v.sku, unit_price=price, quantity=qty, line_total=price * qty,
+                weight_grams=v.weight)  # CAT-26 snapshot
                 for v, qty, price in rows])
             Payment.objects.create(order=order, method=method, amount=total,
                                    sender_number=sender or "", trx_id=trx,

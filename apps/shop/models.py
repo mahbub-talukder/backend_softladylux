@@ -139,6 +139,11 @@ class Order(TimeStampedModel):
     def __str__(self):
         return self.number
 
+    @property
+    def total_weight_grams(self) -> int:
+        """CAT-26: Σ line weight × quantity, for order detail, the delivery slip and CRR-03."""
+        return sum(i.weight_grams * i.quantity for i in self.items.all())
+
 
 class OrderItem(TimeStampedModel):
     """Line snapshot: name, label, SKU and price are copied so later edits never change history."""
@@ -151,6 +156,9 @@ class OrderItem(TimeStampedModel):
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.PositiveSmallIntegerField()
     line_total = models.DecimalField(max_digits=10, decimal_places=2)
+    # CAT-26 (v1.7): effective variant weight copied at placement (rule 10 snapshot). Lines placed
+    # before weight existed were set to 100 g by the migration.
+    weight_grams = models.PositiveIntegerField(default=100)
 
     class Meta:
         ordering = ["id"]

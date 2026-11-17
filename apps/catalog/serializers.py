@@ -111,7 +111,7 @@ class VariantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Variant
         fields = ["id", "size_label", "color_name", "color_hex", "sku", "price_override",
-                  "cost_price", "on_hand", "is_active"]
+                  "cost_price", "on_hand", "is_active", "weight_grams"]  # CAT-25 (v1.7)
         extra_kwargs = {"on_hand": {"required": False}}
 
     def validate_sku(self, v):

@@ -2,13 +2,19 @@
 
 from decimal import Decimal
 
-from django.core.validators import RegexValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models.functions import Lower
 
 from apps.core.models import MediaAsset, TimeStampedModel
 
 SKU_VALIDATOR = RegexValidator(r"^[A-Z0-9-]+$", "SKU: capital letters, digits and dashes only.")
+
+# CAT-24/CAT-25 (v1.7), §10: whole grams 1–30,000. 100 g is the default for new products and the
+# value every product had when weight was introduced, so a weight is never blank.
+WEIGHT_MSG = "Weight must be between 1 and 30,000 grams."
+WEIGHT_VALIDATORS = [MinValueValidator(1, WEIGHT_MSG), MaxValueValidator(30000, WEIGHT_MSG)]
+DEFAULT_WEIGHT_GRAMS = 100
 
 
 class Category(TimeStampedModel):
@@ -84,6 +90,9 @@ class Product(TimeStampedModel):
     tags = models.JSONField(default=list, blank=True)
     seo_title = models.CharField(max_length=120, blank=True)
     seo_description = models.CharField(max_length=300, blank=True)
+    # CAT-24 (v1.7): parcel weight for the delivery slip and Steadfast booking (CRR-03).
+    weight_grams = models.PositiveIntegerField(default=DEFAULT_WEIGHT_GRAMS,
+                                               validators=WEIGHT_VALIDATORS)
 
     class Meta:
         ordering = ["-created_at", "-id"]
@@ -136,6 +145,8 @@ class Variant(TimeStampedModel):
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     on_hand = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    # CAT-25 (v1.7): optional per-variant weight; blank means "same as the product".
+    weight_grams = models.PositiveIntegerField(null=True, blank=True, validators=WEIGHT_VALIDATORS)
 
     class Meta:
         ordering = ["id"]
@@ -143,6 +154,11 @@ class Variant(TimeStampedModel):
     @property
     def price(self):
         return self.price_override if self.price_override is not None else self.product.price
+
+    @property
+    def weight(self) -> int:
+        """CAT-25: effective weight in grams = variant override, else the product weight."""
+        return self.weight_grams if self.weight_grams is not None else self.product.weight_grams
 
     def __str__(self):
         return self.sku
