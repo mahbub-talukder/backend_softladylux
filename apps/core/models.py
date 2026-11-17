@@ -264,6 +264,9 @@ class ThemeSettings(SingletonModel):
     background_hex = models.CharField(max_length=7, default="#F8F4EC")
     text_hex = models.CharField(max_length=7, default="#231E1C")
     tokens = models.JSONField(default=dict)
+    # THM-21 / THM-26 (v1.9): font pairing keys from theme.FONT_PAIRINGS, one per area.
+    storefront_font = models.CharField(max_length=20, default="signature")
+    admin_font = models.CharField(max_length=20, default="signature")
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
 

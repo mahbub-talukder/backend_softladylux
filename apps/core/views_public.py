@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 
 from apps.catalog import services
 
+from . import theme
 from .cache import cached
 from .models import (
     HOME_SECTIONS,
@@ -61,6 +62,11 @@ class PublicSettingsView(PublicView):
                                lambda: PublicSettingsSerializer(SiteSettings.load()).data))
 
 
+def _font_public(key):
+    f = theme.font_pairing(key)
+    return {k: f[k] for k in ("key", "display", "sans", "stylesheet")}
+
+
 class PublicThemeView(PublicView):
     """THM-06: tiny cached token payload for SSR injection."""
 
@@ -68,7 +74,11 @@ class PublicThemeView(PublicView):
         def build():
             t = ThemeSettings.load()
             return {"tokens": t.tokens, "primary": t.primary_hex, "accent": t.accent_hex,
-                    "background": t.background_hex, "text": t.text_hex}
+                    "background": t.background_hex, "text": t.text_hex,
+                    # THM-22/23 (v1.9): font tokens and stylesheet per area. The admin pairing is
+                    # here too because the admin login page renders before anyone signs in.
+                    "fonts": {"storefront": _font_public(t.storefront_font),
+                              "admin": _font_public(t.admin_font)}}
 
         return Response(cached("public:theme", build))
 

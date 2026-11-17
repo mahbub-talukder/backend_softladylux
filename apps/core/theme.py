@@ -172,3 +172,66 @@ def readability_issues(primary: str, background: str | None = None,
 def readability_warning(primary: str, background: str | None = None,
                         text: str | None = None) -> bool:
     return bool(readability_issues(primary, background, text))
+
+
+# ------------------------------------------------------------------ fonts (THM-20..THM-26, v1.9)
+
+DEFAULT_FONT = "signature"  # THM-26: reproduces the original design (THM-13)
+GOOGLE_FONTS = "https://fonts.googleapis.com/css2"
+SERIF = "Georgia, 'Times New Roman', serif"
+SANS = "system-ui, -apple-system, 'Segoe UI', Arial, sans-serif"
+
+# THM-20: the only place fonts are defined. (key, label, heading, body); a font is
+# (family, Google Fonts axis spec, fallback stack). Weights are ones each family actually ships, so
+# the stylesheet request never fails (Google answers 400 for a weight a family lacks).
+_PAIRINGS = [
+    ("signature", "Signature",
+     ("Cormorant Garamond", "ital,wght@0,400;0,500;0,600;1,400;1,500", SERIF),
+     ("Jost", "wght@300;400;500;600", SANS)),
+    ("editorial", "Editorial", ("Playfair Display", "wght@400;500;600", SERIF),
+     ("Inter", "wght@300;400;500;600", SANS)),
+    ("modern", "Modern", ("Montserrat", "wght@400;500;600", SANS),
+     ("Open Sans", "wght@300;400;500;600", SANS)),
+    ("friendly", "Friendly", ("Poppins", "wght@400;500;600", SANS),
+     ("Roboto", "wght@300;400;500;700", SANS)),
+    ("classic", "Classic", ("Lora", "wght@400;500;600", SERIF),
+     ("Source Sans 3", "wght@300;400;500;600", SANS)),
+    ("bookish", "Bookish", ("Merriweather", "wght@400;700", SERIF),
+     ("Lato", "wght@300;400;700", SANS)),
+    ("boutique", "Boutique", ("DM Serif Display", "wght@400", SERIF),
+     ("DM Sans", "wght@300;400;500;600", SANS)),
+    ("elegant", "Elegant", ("Libre Baskerville", "wght@400;700", SERIF),
+     ("Nunito Sans", "wght@300;400;500;600", SANS)),
+    ("clean", "Clean", ("Inter", "wght@300;400;500;600", SANS),
+     ("Inter", "wght@300;400;500;600", SANS)),
+]
+
+
+def _stack(family: str, fallback: str) -> str:
+    return f"'{family}', {fallback}"
+
+
+def _stylesheet(heading, body) -> str:
+    """THM-23: one css2 request per pairing; a family used twice is requested once."""
+    specs = [heading] if heading[0] == body[0] else [heading, body]
+    fams = "&".join(f"family={f.replace(' ', '+')}:{axes}" for f, axes, _ in specs)
+    return f"{GOOGLE_FONTS}?{fams}&display=swap"
+
+
+FONT_PAIRINGS: dict[str, dict] = {
+    key: {
+        "key": key, "label": label,
+        "heading": {"family": h[0], "weights": h[1]},
+        "body": {"family": b[0], "weights": b[1]},
+        "display": _stack(h[0], h[2]),  # value for --font-display
+        "sans": _stack(b[0], b[2]),  # value for --font-sans
+        "stylesheet": _stylesheet(h, b),
+    }
+    for key, label, h, b in _PAIRINGS
+}
+FONT_KEYS = tuple(FONT_PAIRINGS)
+
+
+def font_pairing(key: str | None) -> dict:
+    """THM-21: a saved key that is no longer in the catalogue falls back to the default."""
+    return FONT_PAIRINGS.get(key or "", FONT_PAIRINGS[DEFAULT_FONT])
