@@ -13,7 +13,7 @@ def test_login_sets_cookies_and_me(api_client, owner):
                                                 "password": "owner-pass-123"}, format="json")
     assert r.status_code == 200 and r.data["role"] == "owner"
     assert "sll_access" in r.cookies and r.cookies["sll_access"]["httponly"]
-    assert len(r.data["permissions"]) == 15
+    assert len(r.data["permissions"]) == 17  # §2.2 v1.7
 
 
 def test_customer_cannot_use_admin_login(api_client):  # ACC-10
@@ -60,7 +60,7 @@ def test_me_requires_staff(api_client, as_user, make_staff):
 
 
 def test_catalogue_owner_only(as_user, owner, make_staff):  # §2.2
-    assert len(as_user(owner).get(f"{BASE}/permissions/").data) == 15
+    assert len(as_user(owner).get(f"{BASE}/permissions/").data) == 17  # §2.2 v1.7
     assert as_user(make_staff("settings.manage")).get(f"{BASE}/permissions/").status_code == 403
 
 
@@ -106,7 +106,7 @@ def test_deactivate_and_owner_protection(as_user, owner, make_staff):  # PRM-06/
                   format="json").status_code == 403
     assert c.put(f"{BASE}/users/{owner.id}/permissions/", {"permissions": []},
                  format="json").status_code == 403
-    assert len(c.get(f"{BASE}/users/{owner.id}/permissions/").data["permissions"]) == 15
+    assert len(c.get(f"{BASE}/users/{owner.id}/permissions/").data["permissions"]) == 17  # §2.2 v1.7
     owner.refresh_from_db()
     assert owner.is_active and owner.role == Role.OWNER
 

@@ -143,7 +143,15 @@ def transition(order_id, to, user=None, reason="", note="", courier="", tracking
     order.save()
     add_log(order, frm, to, user, why or note)
     transaction.on_commit(lambda: _notify(order.id, frm, to))
+    if to == S.CONFIRMED:  # CRR-03 (v1.7): book with Steadfast in the background
+        transaction.on_commit(lambda: _auto_book(order.id))
     return order
+
+
+def _auto_book(order_id):
+    from apps.courier.services import queue_auto_book
+
+    queue_auto_book(order_id)
 
 
 def _notify(order_id, frm, to):

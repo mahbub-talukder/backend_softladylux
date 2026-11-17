@@ -27,6 +27,7 @@ from .models import (
 )
 from .phone import normalize_phone
 from .serializers import (
+    SECRET_FIELDS,
     AdminSettingsSerializer,
     AnnouncementSerializer,
     BannerSerializer,
@@ -42,7 +43,8 @@ from .throttles import SmsTestThrottle
 
 class AdminSettingsView(APIView):
     """SET-07: only `settings.manage` (Owner by default) edits; every save is audited
-    with old and new values. The SMS API key is never logged or returned."""
+    with old and new values. Credentials (SECRET_FIELDS) are shown to this permission but the audit
+    only records that they changed, never their values (ACC-02, CRR-01)."""
 
     permission_classes = [require("settings.manage")]
 
@@ -57,6 +59,7 @@ class AdminSettingsView(APIView):
         ser.save()
         after = AdminSettingsSerializer(obj).data
         keep = {k: (before.get(k), after.get(k)) for k in after if before.get(k) != after.get(k)}
+        keep.update({k: ("(hidden)", "(changed)") for k in SECRET_FIELDS if k in keep})
         audit.log(request, "update", "SiteSettings", obj.pk,
                   {k: v[0] for k, v in keep.items()}, {k: v[1] for k, v in keep.items()})
         cache.invalidate()

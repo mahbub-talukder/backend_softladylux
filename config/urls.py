@@ -9,8 +9,10 @@ urlpatterns = [
     path("api/v1/admin/", include("apps.shop.admin_urls")),
     path("api/v1/admin/", include("apps.reports.admin_urls")),
     path("api/v1/admin/", include("apps.core.admin_urls")),
+    path("api/v1/admin/courier/", include("apps.courier.admin_urls")),  # CRR (v1.7)
     path("api/v1/", include("apps.accounts.urls")),
     path("api/v1/", include("apps.core.urls")),
     path("api/v1/", include("apps.catalog.urls")),
     path("api/v1/", include("apps.shop.urls")),
+    path("api/v1/", include("apps.courier.urls")),  # CRR-08 webhook
 ]

@@ -120,21 +120,53 @@ class PublicSettingsSerializer(serializers.ModelSerializer):
         fields = PUBLIC_SETTINGS_FIELDS
 
 
+# ACC-02 / CRR-01: credentials shown in Admin → Settings but never written to the audit log.
+SECRET_FIELDS = ("mimsms_api_key", "steadfast_api_key", "steadfast_secret_key",
+                 "steadfast_webhook_token")
+
+
 class AdminSettingsSerializer(serializers.ModelSerializer):
-    """SET-01..05, SET-09. SMS credentials are write-only (ACC-02): only a `set` flag is shown."""
+    """SET-01..05, SET-09. Owner decision 2026-11-17 (SRS v1.8, ACC-02/CRR-01): the SMS and
+    courier credentials are returned to `settings.manage` users so the form shows what is saved
+    (masked, with a show/hide toggle). They are still never logged, audited or public."""
 
     logo = MediaRefField(allow_null=True, required=False)
     favicon = MediaRefField(allow_null=True, required=False)
     seo_share_image = MediaRefField(allow_null=True, required=False)
-    mimsms_api_key = serializers.CharField(write_only=True, allow_blank=True, required=False)
+    mimsms_api_key = serializers.CharField(allow_blank=True, required=False, max_length=200)
     mimsms_api_key_set = serializers.SerializerMethodField()
+    # CRR-01: Steadfast keys and webhook token (readable since v1.8, never audited).
+    steadfast_api_key = serializers.CharField(allow_blank=True, required=False, max_length=200)
+    steadfast_secret_key = serializers.CharField(allow_blank=True, required=False, max_length=200)
+    steadfast_webhook_token = serializers.RegexField(
+        r"^[A-Za-z0-9._=-]*$", allow_blank=True, required=False, max_length=200,
+        error_messages={"invalid": "Use letters, digits and - _ . = only."})
+    steadfast_api_key_set = serializers.SerializerMethodField()
+    steadfast_secret_key_set = serializers.SerializerMethodField()
+    steadfast_webhook_token_set = serializers.SerializerMethodField()
 
     class Meta:
         model = SiteSettings
         exclude = ["created_at", "updated_at"]
+        read_only_fields = ["steadfast_keys_rejected"]
 
     def get_mimsms_api_key_set(self, obj):
         return bool(obj.mimsms_api_key)
+
+    def get_steadfast_api_key_set(self, obj):
+        return bool(obj.steadfast_api_key)
+
+    def get_steadfast_secret_key_set(self, obj):
+        return bool(obj.steadfast_secret_key)
+
+    def get_steadfast_webhook_token_set(self, obj):
+        return bool(obj.steadfast_webhook_token)
+
+    def update(self, instance, validated):
+        # CRR-06: saving any courier setting lifts the keys-rejected stop, so calls resume.
+        if any(k.startswith("steadfast_") for k in validated):
+            instance.steadfast_keys_rejected = False
+        return super().update(instance, validated)
 
     def validate_gtm_id(self, v):
         v = v.strip()

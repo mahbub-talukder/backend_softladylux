@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.shop",
     "apps.reports",
+    "apps.courier",  # SRS v1.7 §4.18 Steadfast
 ]
 
 MIDDLEWARE = [
@@ -98,6 +99,8 @@ REST_FRAMEWORK = {
         "cart_validate": "60/min", "coupon_validate": "20/min", "checkout": "10/min",
         "track": "20/min", "contact": "5/hour",
         "login": "20/hour", "otp_ip": "30/hour", "forgot": "10/hour", "sms_test": "10/hour",
+        # CRR-02 / CRR-08 (v1.7): Steadfast test button and webhook receiver
+        "courier_ping": "20/hour", "steadfast_webhook": "300/min",
     },
 }
 
