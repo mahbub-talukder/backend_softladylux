@@ -152,7 +152,56 @@ def _theme_payload(t: ThemeSettings):
         "updated_at": t.updated_at,
         "low_contrast_warning": bool(issues),
         "contrast_issues": issues,
+        # THM-20/21 (v1.9): current selections and the catalogue for the Fonts section
+        "storefront_font": t.storefront_font,
+        "admin_font": t.admin_font,
+        # THM-30 (v1.10): previews use the server's tuned values for every text size
+        "font_pairings": [{**f, "adjust": {size: theme.font_adjust(key, size)
+                                           for size in theme.TEXT_SIZE_KEYS}}
+                          for key, f in theme.FONT_PAIRINGS.items()],
+        # THM-28/30 (v1.10)
+        "storefront_text_size": t.storefront_text_size,
+        "admin_text_size": t.admin_text_size,
+        "text_sizes": [{"key": k, "label": v[0], "body": v[1], "heading": v[2]}
+                       for k, v in theme.TEXT_SIZES.items()],
     }
+
+
+COLOUR_FIELDS = ("palette", "primary_hex", "accent_hex", "background_hex", "text_hex")
+FONT_FIELDS = ("storefront_font", "admin_font", "storefront_text_size", "admin_text_size")
+
+
+class FontInputSerializer(serializers.Serializer):
+    """THM-25: only catalogue keys are accepted."""
+
+    storefront_font = serializers.ChoiceField(choices=theme.FONT_KEYS, required=False,
+                                              error_messages={"invalid_choice": "Choose a font "
+                                                              "pairing from the list."})
+    admin_font = serializers.ChoiceField(choices=theme.FONT_KEYS, required=False,
+                                         error_messages={"invalid_choice": "Choose a font "
+                                                         "pairing from the list."})
+    # THM-28 (v1.10)
+    storefront_text_size = serializers.ChoiceField(
+        choices=theme.TEXT_SIZE_KEYS, required=False,
+        error_messages={"invalid_choice": "Choose Compact, Standard or Large."})
+    admin_text_size = serializers.ChoiceField(
+        choices=theme.TEXT_SIZE_KEYS, required=False,
+        error_messages={"invalid_choice": "Choose Compact, Standard or Large."})
+
+
+def _apply_fonts(request, fonts: dict, action="update_fonts"):
+    """THM-21/25: save one or both font selections and audit old → new keys."""
+    t = ThemeSettings.load()
+    before = {k: getattr(t, k) for k in FONT_FIELDS}
+    for k, v in fonts.items():
+        setattr(t, k, v)
+    after = {k: getattr(t, k) for k in FONT_FIELDS}
+    if after != before:
+        t.updated_by = request.user
+        t.save()
+        audit.log(request, action, "ThemeSettings", t.pk, before, after)
+        cache.invalidate()
+    return t
 
 
 class ThemeInputSerializer(serializers.Serializer):
@@ -213,6 +262,13 @@ class AdminThemeView(APIView):
         return Response(_theme_payload(ThemeSettings.load()))
 
     def put(self, request):
+        fonts = FontInputSerializer(data=request.data)
+        fonts.is_valid(raise_exception=True)
+        if not any(k in request.data for k in COLOUR_FIELDS):
+            # THM-24 (v1.9): fonts can be saved on their own, without resending the colours.
+            if not fonts.validated_data:
+                raise serializers.ValidationError({"storefront_font": "Choose a font pairing."})
+            return Response(_theme_payload(_apply_fonts(request, fonts.validated_data)))
         ser = ThemeInputSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         d = ser.validated_data
@@ -227,18 +283,24 @@ class AdminThemeView(APIView):
                 status=status.HTTP_400_BAD_REQUEST)
         t = _apply_theme(request, d["primary_hex"], d["accent_hex"], d.get("palette"), "update",
                          d["background_hex"], d["text_hex"])
+        if fonts.validated_data:
+            t = _apply_fonts(request, fonts.validated_data)
         return Response(_theme_payload(t))
 
 
 class ThemeResetView(APIView):
-    """THM-13: reset to Signature."""
+    """THM-13: reset to Signature. THM-26 (v1.9): the default fonts are restored too."""
 
     permission_classes = [require("theme.manage")]
 
     def post(self, request):
         sig = ThemePalette.objects.get(name="Signature", is_builtin=True)
-        t = _apply_theme(request, sig.primary_hex, sig.accent_hex, sig, "reset",
-                         sig.background_hex, sig.text_hex)
+        _apply_theme(request, sig.primary_hex, sig.accent_hex, sig, "reset",
+                     sig.background_hex, sig.text_hex)
+        t = _apply_fonts(request, {"storefront_font": theme.DEFAULT_FONT,
+                                   "admin_font": theme.DEFAULT_FONT,
+                                   "storefront_text_size": theme.DEFAULT_TEXT_SIZE,
+                                   "admin_text_size": theme.DEFAULT_TEXT_SIZE}, "reset_fonts")
         return Response(_theme_payload(t))
 
 
