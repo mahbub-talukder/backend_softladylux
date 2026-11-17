@@ -12,7 +12,7 @@ def test_sms_settings_fields_editable(as_user, owner):
     c = as_user(owner)
     d = c.get(f"{A}/settings/").data
     assert d["mimsms_url"] == "https://api.mimsms.com/api/V2/SMS" and d["sms_order_enabled"] is True
-    assert d["mimsms_api_key_set"] is False and "mimsms_api_key" not in d
+    assert d["mimsms_api_key_set"] is False and d["mimsms_api_key"] == ""  # v1.8: readable
     for gone in ("mimsms_method", "mimsms_params", "mimsms_success_contains", "mimsms_sender_id"):
         assert gone not in d
     r = c.patch(f"{A}/settings/", {"mimsms_username": "shop@example.com",

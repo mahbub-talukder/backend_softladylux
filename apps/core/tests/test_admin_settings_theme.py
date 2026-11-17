@@ -1,4 +1,4 @@
-# Covers SRS SET-02/03/07/09, ACC-02 (write-only credentials), THM-02/07/08/10/13/14/18/19,
+# Covers SRS SET-02/03/07/09, ACC-02 (credentials shown to settings.manage, never audited, v1.8), THM-02/07/08/10/13/14/18/19,
 # scenarios 10 (fees editable), 15, 16, 17, 19, 27.
 import pytest
 
@@ -29,11 +29,14 @@ def test_settings_validation(as_user, owner):  # SET-09, SET-03
                    format="json").status_code == 200
 
 
-def test_sms_credentials_write_only_and_not_audited(as_user, owner, api_client):  # ACC-02
+def test_sms_credentials_shown_to_settings_manage_but_not_audited(as_user, owner, api_client):
+    # ACC-02 (v1.8): the saved key is returned so the form can show it; the audit only says "changed".
     c = as_user(owner)
     r = c.patch(f"{A}/settings/", {"mimsms_api_key": "SECRET-KEY"}, format="json")
-    assert "mimsms_api_key" not in r.data and r.data["mimsms_api_key_set"] is True
+    assert r.data["mimsms_api_key"] == "SECRET-KEY" and r.data["mimsms_api_key_set"] is True
+    assert c.get(f"{A}/settings/").data["mimsms_api_key"] == "SECRET-KEY"
     assert "SECRET-KEY" not in str(AuditLog.objects.values_list("before", "after"))
+    assert AuditLog.objects.get(action="update").after["mimsms_api_key"] == "(changed)"
     assert "SECRET-KEY" not in api_client.get("/api/v1/settings/").content.decode()
 
 

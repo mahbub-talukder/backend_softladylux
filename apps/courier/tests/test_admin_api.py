@@ -12,13 +12,14 @@ A = "/api/v1/admin/courier"
 # ------------------------------------------------------------------ settings (CRR-01, CRR-06)
 
 
-def test_courier_keys_are_write_only_and_saving_lifts_the_stop(as_user, owner, steadfast):
+def test_courier_keys_shown_not_audited_and_saving_lifts_the_stop(as_user, owner, steadfast):
     c = as_user(owner)
     SiteSettings.objects.update(steadfast_keys_rejected=True)
     r = c.patch("/api/v1/admin/settings/", {"steadfast_api_key": "new-key"}, format="json")
     assert r.status_code == 200
     for k in ("steadfast_api_key", "steadfast_secret_key", "steadfast_webhook_token"):
-        assert k not in r.data and r.data[f"{k}_set"] is True
+        assert r.data[k] and r.data[f"{k}_set"] is True  # CRR-01 (v1.8): shown to settings.manage
+    assert r.data["steadfast_api_key"] == "new-key"
     assert r.data["steadfast_keys_rejected"] is False
     assert "new-key" not in str(AuditLog.objects.values_list("before", "after"))
     r = c.patch("/api/v1/admin/settings/", {"steadfast_webhook_token": "bad token!"},

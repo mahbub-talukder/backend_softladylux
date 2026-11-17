@@ -99,7 +99,7 @@ class SiteSettings(SingletonModel):
     gtm_id = models.CharField(max_length=20, blank=True)
 
     # ACC-02 / NTF-02 (amendment v1.6): MiMSMS JSON API, configured only here (no env, no fake
-    # sender). The API key is write-only: never returned by any API, logged or audited.
+    # sender). The API key is shown only to settings.manage (v1.8) and never logged or audited.
     mimsms_api_key = models.CharField(max_length=200, blank=True)
     mimsms_username = models.CharField(max_length=120, blank=True)
     mimsms_sender_name = models.CharField(max_length=40, blank=True)  # numeric sender, e.g. 8809…
@@ -107,7 +107,7 @@ class SiteSettings(SingletonModel):
     sms_order_enabled = models.BooleanField(default=True)  # NTF-02: order-received SMS on/off
 
     # CRR-01 (v1.7): Steadfast courier, configured only here (no env). Keys and the webhook token
-    # are write-only: never returned by any API, logged or audited.
+    # are shown only to settings.manage (v1.8) and never logged or audited.
     steadfast_api_key = models.CharField(max_length=200, blank=True)
     steadfast_secret_key = models.CharField(max_length=200, blank=True)
     steadfast_webhook_token = models.CharField(max_length=200, blank=True)
