@@ -174,7 +174,7 @@ def readability_warning(primary: str, background: str | None = None,
     return bool(readability_issues(primary, background, text))
 
 
-# ------------------------------------------------------------------ fonts (THM-20..THM-26, v1.9)
+# ----------------------------------------------------------- fonts (THM-20..THM-31, v1.9/v1.10)
 
 DEFAULT_FONT = "signature"  # THM-26: reproduces the original design (THM-13)
 GOOGLE_FONTS = "https://fonts.googleapis.com/css2"
@@ -182,29 +182,43 @@ SERIF = "Georgia, 'Times New Roman', serif"
 SANS = "system-ui, -apple-system, 'Segoe UI', Arial, sans-serif"
 
 # THM-20: the only place fonts are defined. (key, label, heading, body); a font is
-# (family, Google Fonts axis spec, fallback stack). Weights are ones each family actually ships, so
-# the stylesheet request never fails (Google answers 400 for a weight a family lacks).
+# (family, Google Fonts axis spec, fallback stack, x-height, factor). Weights are ones each family
+# actually ships, so the stylesheet request never fails (Google answers 400 for a missing weight).
+# THM-27 (v1.10): x-height measured in the browser (2026-11-17, SRS_AMENDMENT_v1.10_DRAFT.md);
+# factor = width of the original design's font ÷ this font's width (heading vs Cormorant Garamond,
+# body vs Jost), max 1.0, so tuned text is never wider than today and wraps where it wraps today.
 _PAIRINGS = [
     ("signature", "Signature",
-     ("Cormorant Garamond", "ital,wght@0,400;0,500;0,600;1,400;1,500", SERIF),
-     ("Jost", "wght@300;400;500;600", SANS)),
-    ("editorial", "Editorial", ("Playfair Display", "wght@400;500;600", SERIF),
-     ("Inter", "wght@300;400;500;600", SANS)),
-    ("modern", "Modern", ("Montserrat", "wght@400;500;600", SANS),
-     ("Open Sans", "wght@300;400;500;600", SANS)),
-    ("friendly", "Friendly", ("Poppins", "wght@400;500;600", SANS),
-     ("Roboto", "wght@300;400;500;700", SANS)),
-    ("classic", "Classic", ("Lora", "wght@400;500;600", SERIF),
-     ("Source Sans 3", "wght@300;400;500;600", SANS)),
-    ("bookish", "Bookish", ("Merriweather", "wght@400;700", SERIF),
-     ("Lato", "wght@300;400;700", SANS)),
-    ("boutique", "Boutique", ("DM Serif Display", "wght@400", SERIF),
-     ("DM Sans", "wght@300;400;500;600", SANS)),
-    ("elegant", "Elegant", ("Libre Baskerville", "wght@400;700", SERIF),
-     ("Nunito Sans", "wght@300;400;500;600", SANS)),
-    ("clean", "Clean", ("Inter", "wght@300;400;500;600", SANS),
-     ("Inter", "wght@300;400;500;600", SANS)),
+     ("Cormorant Garamond", "ital,wght@0,400;0,500;0,600;1,400;1,500", SERIF, 0.39, 1.00),
+     ("Jost", "wght@300;400;500;600", SANS, 0.46, 1.00)),
+    ("editorial", "Editorial", ("Playfair Display", "wght@400;500;600", SERIF, 0.52, 0.87),
+     ("Inter", "wght@300;400;500;600", SANS, 0.54, 0.89)),
+    ("modern", "Modern", ("Montserrat", "wght@400;500;600", SANS, 0.54, 0.79),
+     ("Open Sans", "wght@300;400;500;600", SANS, 0.55, 0.91)),
+    ("friendly", "Friendly", ("Poppins", "wght@400;500;600", SANS, 0.56, 0.81),
+     ("Roboto", "wght@300;400;500;700", SANS, 0.54, 0.96)),
+    ("classic", "Classic", ("Lora", "wght@400;500;600", SERIF, 0.51, 0.84),
+     ("Source Sans 3", "wght@300;400;500;600", SANS, 0.49, 1.00)),
+    ("bookish", "Bookish", ("Merriweather", "wght@400;700", SERIF, 0.56, 0.83),
+     ("Lato", "wght@300;400;700", SANS, 0.52, 0.99)),
+    ("boutique", "Boutique", ("DM Serif Display", "wght@400", SERIF, 0.49, 0.89),
+     ("DM Sans", "wght@300;400;500;600", SANS, 0.51, 0.92)),
+    ("elegant", "Elegant", ("Libre Baskerville", "wght@400;700", SERIF, 0.53, 0.76),
+     ("Nunito Sans", "wght@300;400;500;600", SANS, 0.50, 0.95)),
+    ("clean", "Clean", ("Inter", "wght@300;400;500;600", SANS, 0.54, 0.83),
+     ("Inter", "wght@300;400;500;600", SANS, 0.54, 0.89)),
 ]
+
+# THM-28 (v1.10): text size per area as (body, heading) multipliers. Headings grow less on Large
+# because they already fill narrow phone widths.
+TEXT_SIZES = {
+    "compact": ("Compact", 0.94, 0.94),
+    "standard": ("Standard", 1.00, 1.00),
+    "large": ("Large", 1.06, 1.03),
+}
+DEFAULT_TEXT_SIZE = "standard"
+TEXT_SIZE_KEYS = tuple(TEXT_SIZES)
+ADJUST_MIN, ADJUST_MAX = 0.2, 1.0  # THM-29: accepted range for font-size-adjust values
 
 
 def _stack(family: str, fallback: str) -> str:
@@ -214,15 +228,15 @@ def _stack(family: str, fallback: str) -> str:
 def _stylesheet(heading, body) -> str:
     """THM-23: one css2 request per pairing; a family used twice is requested once."""
     specs = [heading] if heading[0] == body[0] else [heading, body]
-    fams = "&".join(f"family={f.replace(' ', '+')}:{axes}" for f, axes, _ in specs)
+    fams = "&".join(f"family={f[0].replace(' ', '+')}:{f[1]}" for f in specs)
     return f"{GOOGLE_FONTS}?{fams}&display=swap"
 
 
 FONT_PAIRINGS: dict[str, dict] = {
     key: {
         "key": key, "label": label,
-        "heading": {"family": h[0], "weights": h[1]},
-        "body": {"family": b[0], "weights": b[1]},
+        "heading": {"family": h[0], "weights": h[1], "x_height": h[3], "factor": h[4]},
+        "body": {"family": b[0], "weights": b[1], "x_height": b[3], "factor": b[4]},
         "display": _stack(h[0], h[2]),  # value for --font-display
         "sans": _stack(b[0], b[2]),  # value for --font-sans
         "stylesheet": _stylesheet(h, b),
@@ -235,3 +249,21 @@ FONT_KEYS = tuple(FONT_PAIRINGS)
 def font_pairing(key: str | None) -> dict:
     """THM-21: a saved key that is no longer in the catalogue falls back to the default."""
     return FONT_PAIRINGS.get(key or "", FONT_PAIRINGS[DEFAULT_FONT])
+
+
+def _adjust(role: dict, multiplier: float) -> str:
+    """THM-27/29: `font-size-adjust` value = x-height × factor × size, or "none" when the font is
+    drawn exactly as designed (Signature at Standard: unchanged pixel for pixel, scenario 48)."""
+    scale = role["factor"] * multiplier
+    if abs(scale - 1.0) < 1e-9:
+        return "none"
+    value = min(max(role["x_height"] * scale, ADJUST_MIN), ADJUST_MAX)
+    return f"{value:.3f}"
+
+
+def font_adjust(key: str | None, text_size: str | None) -> dict:
+    """THM-27/28: the two adjust values for a pairing at a text size."""
+    f = font_pairing(key)
+    _label, body_mult, heading_mult = TEXT_SIZES.get(text_size or "", TEXT_SIZES[DEFAULT_TEXT_SIZE])
+    return {"display_adjust": _adjust(f["heading"], heading_mult),
+            "sans_adjust": _adjust(f["body"], body_mult)}

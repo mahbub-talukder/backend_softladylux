@@ -155,12 +155,20 @@ def _theme_payload(t: ThemeSettings):
         # THM-20/21 (v1.9): current selections and the catalogue for the Fonts section
         "storefront_font": t.storefront_font,
         "admin_font": t.admin_font,
-        "font_pairings": list(theme.FONT_PAIRINGS.values()),
+        # THM-30 (v1.10): previews use the server's tuned values for every text size
+        "font_pairings": [{**f, "adjust": {size: theme.font_adjust(key, size)
+                                           for size in theme.TEXT_SIZE_KEYS}}
+                          for key, f in theme.FONT_PAIRINGS.items()],
+        # THM-28/30 (v1.10)
+        "storefront_text_size": t.storefront_text_size,
+        "admin_text_size": t.admin_text_size,
+        "text_sizes": [{"key": k, "label": v[0], "body": v[1], "heading": v[2]}
+                       for k, v in theme.TEXT_SIZES.items()],
     }
 
 
 COLOUR_FIELDS = ("palette", "primary_hex", "accent_hex", "background_hex", "text_hex")
-FONT_FIELDS = ("storefront_font", "admin_font")
+FONT_FIELDS = ("storefront_font", "admin_font", "storefront_text_size", "admin_text_size")
 
 
 class FontInputSerializer(serializers.Serializer):
@@ -172,6 +180,13 @@ class FontInputSerializer(serializers.Serializer):
     admin_font = serializers.ChoiceField(choices=theme.FONT_KEYS, required=False,
                                          error_messages={"invalid_choice": "Choose a font "
                                                          "pairing from the list."})
+    # THM-28 (v1.10)
+    storefront_text_size = serializers.ChoiceField(
+        choices=theme.TEXT_SIZE_KEYS, required=False,
+        error_messages={"invalid_choice": "Choose Compact, Standard or Large."})
+    admin_text_size = serializers.ChoiceField(
+        choices=theme.TEXT_SIZE_KEYS, required=False,
+        error_messages={"invalid_choice": "Choose Compact, Standard or Large."})
 
 
 def _apply_fonts(request, fonts: dict, action="update_fonts"):
@@ -282,7 +297,10 @@ class ThemeResetView(APIView):
         sig = ThemePalette.objects.get(name="Signature", is_builtin=True)
         _apply_theme(request, sig.primary_hex, sig.accent_hex, sig, "reset",
                      sig.background_hex, sig.text_hex)
-        t = _apply_fonts(request, {k: theme.DEFAULT_FONT for k in FONT_FIELDS}, "reset_fonts")
+        t = _apply_fonts(request, {"storefront_font": theme.DEFAULT_FONT,
+                                   "admin_font": theme.DEFAULT_FONT,
+                                   "storefront_text_size": theme.DEFAULT_TEXT_SIZE,
+                                   "admin_text_size": theme.DEFAULT_TEXT_SIZE}, "reset_fonts")
         return Response(_theme_payload(t))
 
 

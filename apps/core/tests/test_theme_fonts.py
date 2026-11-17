@@ -26,7 +26,8 @@ def test_defaults_are_signature_and_public_payload(api_client):  # THM-21/22/26
     fonts = api_client.get("/api/v1/theme/").data["fonts"]
     assert fonts["storefront"]["key"] == "signature"
     assert fonts["storefront"]["display"].startswith("'Cormorant Garamond'")
-    assert set(fonts["storefront"]) == {"key", "display", "sans", "stylesheet"}
+    assert set(fonts["storefront"]) == {"key", "display", "sans", "stylesheet", "display_adjust",
+                                        "sans_adjust", "text_size"}  # + THM-29 (v1.10)
     assert fonts["admin"]["key"] == "signature"
 
 
@@ -78,3 +79,58 @@ def test_scenario_44_reset_restores_signature_fonts(as_user, owner):
 def test_unknown_saved_key_falls_back_to_default():  # THM-21 safety
     assert theme.font_pairing("gone")["key"] == "signature"
     assert theme.font_pairing(None)["key"] == "signature"
+
+
+# ------------------------------------------------------------------ v1.10 tuning and text size
+
+
+def test_signature_standard_sends_no_adjustment():  # THM-27, scenario 48
+    assert theme.font_adjust("signature", "standard") == {"display_adjust": "none",
+                                                          "sans_adjust": "none"}
+
+
+@pytest.mark.parametrize("key", theme.FONT_KEYS)
+@pytest.mark.parametrize("size", theme.TEXT_SIZE_KEYS)
+def test_adjust_values_in_range_and_never_wider_than_original(key, size):  # THM-27/28/29
+    a = theme.font_adjust(key, size)
+    f = theme.FONT_PAIRINGS[key]
+    for role, value in (("heading", a["display_adjust"]), ("body", a["sans_adjust"])):
+        assert value == "none" or theme.ADJUST_MIN <= float(value) <= theme.ADJUST_MAX
+        assert f[role]["factor"] <= 1.0  # width-matched: tuned text is never wider than today
+    if size == "standard" and key != "signature":
+        expected = f"{f['heading']['x_height'] * f['heading']['factor']:.3f}"
+        assert a["display_adjust"] == expected
+
+
+def test_text_size_multipliers():  # THM-28: Large grows body more than headings
+    large, compact = theme.font_adjust("signature", "large"), theme.font_adjust("signature", "compact")
+    assert large["sans_adjust"] == f"{0.46 * 1.06:.3f}"
+    assert large["display_adjust"] == f"{0.39 * 1.03:.3f}"
+    assert compact["sans_adjust"] == f"{0.46 * 0.94:.3f}"
+    assert theme.font_adjust("signature", "bogus") == theme.font_adjust("signature", "standard")
+
+
+def test_text_size_saved_audited_public_and_reset(as_user, owner, api_client):  # scenario 49
+    c = as_user(owner)
+    d = c.get(f"{A}/theme/").data
+    assert d["storefront_text_size"] == "standard" and [s["key"] for s in d["text_sizes"]] == [
+        "compact", "standard", "large"]
+    assert c.put(f"{A}/theme/", {"admin_text_size": "huge"}, format="json").status_code == 400
+    r = c.put(f"{A}/theme/", {"storefront_font": "elegant", "storefront_text_size": "large"},
+              format="json")
+    assert r.status_code == 200 and r.data["storefront_text_size"] == "large"
+    log = AuditLog.objects.filter(action="update_fonts").latest("id")
+    assert log.after["storefront_text_size"] == "large"
+    pub = api_client.get("/api/v1/theme/").data["fonts"]["storefront"]
+    assert pub["text_size"] == "large"
+    assert pub["display_adjust"] == theme.font_adjust("elegant", "large")["display_adjust"]
+    assert pub["sans_adjust"] != "none"
+    c.post(f"{A}/theme/reset/")
+    assert ThemeSettings.load().storefront_text_size == "standard"
+
+
+def test_admin_catalogue_carries_adjust_per_size(as_user, owner):  # THM-30 previews
+    p = next(x for x in as_user(owner).get(f"{A}/theme/").data["font_pairings"]
+             if x["key"] == "modern")
+    assert set(p["adjust"]) == {"compact", "standard", "large"}
+    assert p["adjust"]["large"] == theme.font_adjust("modern", "large")
