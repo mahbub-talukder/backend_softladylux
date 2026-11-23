@@ -119,6 +119,7 @@ def _mark_booked(order, ship, consignment, user, source_note="Booked with Steadf
     ship.courier_status = str(consignment.get("status") or "in_review")[:60]
     ship.status_at = ship.last_event_at = ship.booked_at = now
     ship.attention, ship.last_error, ship.booked_by = Attention.NONE, "", user
+    ship.queued_at = None  # ORD-14: the queued booking is done
     ship.save()
     add_event(order, CourierEvent.Kind.STATUS, source_note, now, CourierEvent.Source.BOOKING,
               status=ship.courier_status)
@@ -129,7 +130,8 @@ def _mark_booked(order, ship, consignment, user, source_note="Booked with Steadf
 
 def _mark_failed(ship, err: SteadfastError):
     ship.attention, ship.last_error = Attention.BOOKING_FAILED, _error_text(err)
-    ship.save(update_fields=["attention", "last_error", "updated_at"])
+    ship.queued_at = None  # ORD-14: staff may retry or ship by hand
+    ship.save(update_fields=["attention", "last_error", "queued_at", "updated_at"])
 
 
 def _recover_duplicate(order, ship, user) -> bool:
@@ -183,6 +185,7 @@ def book_task(order_id):
         _ship, err = book(order_id)
     except Conflict as e:  # already booked, or no longer Confirmed: nothing to do
         log.info("Auto-booking skipped for order %s: %s", order_id, e.detail)
+        Shipment.objects.filter(order_id=order_id).update(queued_at=None)  # ORD-14
         return
     if err is not None and err.retryable:
         raise err
@@ -195,7 +198,18 @@ def queue_auto_book(order_id):
 
     s = SiteSettings.load()
     if s.steadfast_auto_book and steadfast.is_configured() and not s.steadfast_keys_rejected:
+        # ORD-14 (v1.11): mark the booking as in flight so staff see "Booking with Steadfast..."
+        ship, _ = Shipment.objects.get_or_create(order_id=order_id)
+        if not ship.is_booked:
+            Shipment.objects.filter(pk=ship.pk).update(queued_at=timezone.now())
         _enqueue("apps.courier.services.book_task", order_id)
+
+
+def ready() -> bool:
+    # ORD-14 (v1.11): Move to Shipping books with Steadfast when the keys are set and not rejected.
+    from apps.core.models import SiteSettings
+
+    return steadfast.is_configured() and not SiteSettings.load().steadfast_keys_rejected
 
 
 def bulk_book(order_ids, user):

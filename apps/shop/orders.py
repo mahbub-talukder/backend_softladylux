@@ -128,6 +128,7 @@ def transition(order_id, to, user=None, reason="", note="", courier="", tracking
         _release_coupon(order)
         order.cancelled_at, order.cancel_reason = now, why
     elif to == S.SHIPPING:
+        _refuse_while_booking(order)  # ORD-14 (v1.11): never ship by hand under a running booking
         order.shipped_at = now  # ORD-10: courier + tracking are free text
         order.courier, order.tracking_ref = courier.strip()[:80], tracking.strip()[:80]
     elif to == S.DELIVERED:
@@ -146,6 +147,15 @@ def transition(order_id, to, user=None, reason="", note="", courier="", tracking
     if to == S.CONFIRMED:  # CRR-03 (v1.7): book with Steadfast in the background
         transaction.on_commit(lambda: _auto_book(order.id))
     return order
+
+
+def _refuse_while_booking(order):
+    from apps.courier.models import Shipment
+
+    ship = Shipment.objects.filter(order=order).first()
+    if ship and ship.booking_in_progress:
+        raise Conflict("A Steadfast booking for this order is in progress. Wait a moment and refresh.",
+                       code="booking_in_progress")
 
 
 def _auto_book(order_id):

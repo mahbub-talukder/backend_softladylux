@@ -162,10 +162,16 @@ class AdminOrderSerializer(serializers.ModelSerializer):
     is_stale = serializers.SerializerMethodField()
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     user_name = serializers.SerializerMethodField()
+    steadfast_ready = serializers.SerializerMethodField()  # ORD-14 (v1.11)
 
     class Meta:
         model = Order
         exclude = ["idempotency_key", "updated_at", "created_at"]
+
+    def get_steadfast_ready(self, o):
+        from apps.courier.services import ready
+
+        return ready()
 
     def get_is_stale(self, o):
         return is_stale(o)
