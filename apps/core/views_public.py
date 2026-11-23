@@ -92,6 +92,15 @@ def _one(qs, placement):
     return BannerSerializer(b).data if b else None
 
 
+class LoginBannerView(PublicView):
+    """v1.11 owner request: picture (and optional heading/text) for the login / register side panel.
+    null while it has no image or is switched off; the page then keeps its drawn panel."""
+
+    def get(self, request):
+        return Response(cached("public:login-banner", lambda: _one(
+            Banner.objects.filter(is_active=True, media__isnull=False), "login")))
+
+
 class HomeView(PublicView):
     """WEB-01..08: fixed home layout content; each block is on/off (WEB-06).
     `categories` stays empty until the catalogue arrives in M2 (WEB-03)."""

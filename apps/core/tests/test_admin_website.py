@@ -81,7 +81,8 @@ def test_max_eight_active_slides(as_user, owner, media):  # WEB-01
 def test_banners_fixed_placements_edit_only(as_user, owner, media):  # WEB-02 / WEB-11 (v1.6)
     c = as_user(owner)
     rows = c.get(f"{A}/website/banners/").data
-    assert sorted(b["placement"] for b in rows) == ["home_offer", "home_promo", "popup", "signature"]
+    assert sorted(b["placement"] for b in rows) == ["home_offer", "home_promo", "login", "popup",
+                                                     "signature"]  # login: v1.11
     only = c.get(f"{A}/website/banners/", {"placement": "popup"}).data
     assert [b["placement"] for b in only] == ["popup"] and "updated_at" in only[0]
     two = c.get(f"{A}/website/banners/", {"placement": "home_promo, signature"}).data
@@ -167,3 +168,14 @@ def test_home_sections_switch_skips_queries_and_audits(as_user, owner, api_clien
     assert c.put(f"{A}/website/home-sections/", {"nope": True}, format="json").status_code == 400
     assert c.put(f"{A}/website/home-sections/", {"videos": "yes"}, format="json").status_code == 400
     assert c.get(f"{A}/audit-log/").data["count"] >= 1
+
+
+def test_login_banner_placement(as_user, owner, api_client):  # v1.11: login / register side panel
+    from apps.core.models import Banner
+
+    b = Banner.objects.get(placement="login")
+    assert b.is_active is True and b.media is None
+    assert api_client.get("/api/v1/banners/login/").data is None  # no image yet: drawn panel stays
+    rows = as_user(owner).get("/api/v1/admin/website/banners/", {"placement": "login"}).data
+    rows = rows["results"] if isinstance(rows, dict) else rows
+    assert [r["placement"] for r in rows] == ["login"]

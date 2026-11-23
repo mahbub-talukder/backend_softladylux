@@ -2,7 +2,7 @@
 
 from django.core.cache import cache
 
-KEYS = ("public:settings", "public:theme", "public:home")
+KEYS = ("public:settings", "public:theme", "public:home", "public:login-banner")  # v1.11
 TTL = 3600
 
 

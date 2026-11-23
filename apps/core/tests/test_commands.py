@@ -101,7 +101,7 @@ def test_seed_demo_creates_catalogue_photos_content(demo):
 
     assert list(TrustItem.objects.values_list("title", flat=True)) == [
         "Comfort-first fabrics", "Find your size", "bKash & Nagad", "Track every order"]
-    assert Banner.objects.filter(is_active=True).count() == 2
+    assert Banner.objects.filter(is_active=True, media__isnull=False).count() == 2  # shown banners
     assert Coupon.objects.filter(code="WELCOME10").exists()
     assert SiteSettings.load().address_line1 == "[STORE ADDRESS]"  # marked placeholder
 
@@ -127,7 +127,8 @@ def test_seed_demo_reset_hides_demo_products_and_keeps_real_ones(demo):
     real.refresh_from_db()
     assert real.is_active is True  # the owner's own product is untouched
     assert CarouselSlide.objects.count() == 0
-    assert Banner.objects.filter(is_active=True).count() == 0 and Banner.objects.count() == 4
+    assert Banner.objects.filter(is_active=True, media__isnull=False).count() == 0
+    assert Banner.objects.count() == 5  # incl. the v1.11 login placement
     assert not Coupon.objects.filter(code="WELCOME10").exists()
 
 

@@ -9,6 +9,7 @@ urlpatterns = [
     path("settings/", p.PublicSettingsView.as_view(), name="public-settings"),
     path("theme/", p.PublicThemeView.as_view(), name="public-theme"),
     path("home/", p.HomeView.as_view(), name="public-home"),
+    path("banners/login/", p.LoginBannerView.as_view(), name="public-login-banner"),  # v1.11
     path("contact/", e.ContactView.as_view(), name="contact"),
     path("newsletter/", e.NewsletterView.as_view(), name="newsletter"),
     path("pages/<slug:slug>/", p.PublicPageView.as_view(), name="public-page"),

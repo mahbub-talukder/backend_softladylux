@@ -191,7 +191,8 @@ class Banner(TimeStampedModel):
     collection panel; `popup` is the Promotional Ads Panel (WEB-11)."""
 
     PLACEMENTS = [("home_promo", "Home promo"), ("home_offer", "Home offer"),
-                  ("signature", "Signature collection"), ("popup", "Promotional popup")]
+                  ("signature", "Signature collection"), ("popup", "Promotional popup"),
+                  ("login", "Login page")]  # v1.11: side panel of the login / register page
     HOME_ROW = ("home_promo", "home_offer")  # the two side-by-side home banners
     placement = models.CharField(max_length=20, choices=PLACEMENTS, unique=True)
     media = models.ForeignKey(MediaAsset, null=True, blank=True, on_delete=models.SET_NULL,
