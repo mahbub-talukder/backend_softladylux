@@ -41,7 +41,7 @@ class Shipment(TimeStampedModel):
                                   on_delete=models.SET_NULL, related_name="+")
     last_event_at = models.DateTimeField(null=True, blank=True)  # CRR-11: last webhook/poll news
     # ORD-14 (v1.11): set when an auto-booking is queued, cleared when it books or fails. While
-    # it is recent, Move to Shipping waits ("Booking with Steadfast...") and manual shipping is refused.
+    # it is recent, Move to Shipping waits ("Booking with Steadfast...") and manual ship is refused.
     queued_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
