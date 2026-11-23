@@ -31,6 +31,8 @@ CATALOGUE = [
      False, True),
     # NTF-07 / ADM-14 (v1.11): SMS log (receiver numbers and message text, read-only).
     ("sms_log.view", "Settings", "SMS log: every SMS sent, its source and status", False, True),
+    # v1.11 owner request: send a one-off SMS from the SMS log page (each SMS costs credit).
+    ("sms.send", "Settings", "Send an SMS to any number from the SMS log page", False, True),
 ]
 CODES = [c[0] for c in CATALOGUE]
 DEFAULT_CODES = [c[0] for c in CATALOGUE if c[3]]
@@ -43,6 +45,7 @@ IMPLIES = {
     "products.manage": "products.view",
     "inventory.adjust": "inventory.view",
     "courier.manage": "courier.view",  # PRM-05 (v1.7)
+    "sms.send": "sms_log.view",  # v1.11: sending happens on the SMS log page
 }
 
 

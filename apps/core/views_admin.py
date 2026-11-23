@@ -41,7 +41,7 @@ from .serializers import (
     TrustItemSerializer,
     VideoSerializer,
 )
-from .throttles import SmsTestThrottle
+from .throttles import SmsSendThrottle, SmsTestThrottle
 
 
 class AdminSettingsView(APIView):
@@ -497,3 +497,38 @@ class SmsLogView(generics.ListAPIView):
         if q:
             qs = qs.filter(receiver__contains=q)
         return qs
+
+
+SMS_MAX_LEN = 640  # v1.11: about 4 GSM / 9 Unicode parts, so a typo never becomes a costly SMS
+
+
+class SmsSendView(APIView):
+    """v1.11 owner request: Admin -> SMS log -> "Send SMS". Sends one SMS now (synchronously, so
+    the result shows in the dialog), records it in the SMS log (source "Admin (manual)", NTF-07)
+    and audits it with the number only. Needs `sms.send`; rate-limited (each SMS costs credit)."""
+
+    permission_classes = [require("sms.send")]
+    throttle_classes = [SmsSendThrottle]
+
+    def post(self, request):
+        try:
+            phone = normalize_phone(request.data.get("phone"))
+        except ValueError as e:
+            raise serializers.ValidationError({"phone": str(e)}) from None
+        if not phone:
+            raise serializers.ValidationError({"phone": "Enter a mobile number."})
+        message = str(request.data.get("message") or "").strip()
+        if not message:
+            raise serializers.ValidationError({"message": "Write a message."})
+        if len(message) > SMS_MAX_LEN:
+            raise serializers.ValidationError({"message": f"Use at most {SMS_MAX_LEN} characters."})
+        ok, detail = True, ""
+        try:
+            ref = sms.send(phone, message, SmsLog.Source.ADMIN_MANUAL)
+            detail = f"Sent (transaction {ref or 'n/a'})."
+        except sms.SmsError as e:
+            ok, detail = False, str(e)
+        audit.log(request, "sms_send", "SmsLog", "", None, {"phone": phone, "ok": ok})
+        row = SmsLog.objects.filter(receiver=phone, source=SmsLog.Source.ADMIN_MANUAL).first()
+        return Response({"ok": ok, "detail": detail,
+                         "log": SmsLogSerializer(row).data if row else None})

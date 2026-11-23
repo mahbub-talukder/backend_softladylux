@@ -34,5 +34,6 @@ urlpatterns = [
     path("newsletter/export/", eng.SubscriberExportView.as_view(), name="admin-newsletter-export"),
     path("audit-log/", v.AuditLogView.as_view(), name="admin-audit-log"),
     path("sms-log/", v.SmsLogView.as_view(), name="admin-sms-log"),  # ADM-14 (v1.11)
+    path("sms-log/send/", v.SmsSendView.as_view(), name="admin-sms-send"),  # v1.11 manual SMS
     path("", include(router.urls)),
 ]

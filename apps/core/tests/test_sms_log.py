@@ -77,3 +77,38 @@ def test_admin_list_filters(as_user, owner):
     assert first["source_label"] == "Order received" and first["status_label"] == "Failed"
     assert c.get(url, {"from": "2000-01-01", "to": "2999-01-01"}).data["count"] == 2
     assert c.get(url, {"from": "bad"}).status_code == 400
+
+
+# ---------------------------------------------------------------- manual Send SMS (v1.11 owner request)
+
+
+def test_manual_send_logs_and_audits(as_user, owner, sms_outbox):
+    from apps.core.models import AuditLog
+
+    r = as_user(owner).post(f"{A}/sms-log/send/", {"phone": "+8801712345678", "message": " Hello there "},
+                            format="json")
+    assert r.status_code == 200 and r.data["ok"] is True and "TEST-TRXN" in r.data["detail"]
+    assert sms_outbox.sent == [("01712345678", "Hello there")]
+    assert r.data["log"]["source"] == "admin_manual" and r.data["log"]["status"] == "sent"
+    assert AuditLog.objects.get(action="sms_send").after == {"phone": "01712345678", "ok": True}
+
+
+def test_manual_send_gateway_failure_is_reported_and_logged(as_user, owner, sms_outbox):
+    sms_outbox.fail = "SMS rejected: Invalid API key"
+    r = as_user(owner).post(f"{A}/sms-log/send/", {"phone": "01712345678", "message": "Hi"}, format="json")
+    assert r.status_code == 200 and r.data["ok"] is False and "Invalid API key" in r.data["detail"]
+    assert r.data["log"]["status"] == "failed"
+
+
+@pytest.mark.parametrize("body", [{"phone": "", "message": "Hi"}, {"phone": "123", "message": "Hi"},
+                                  {"phone": "01712345678", "message": "  "},
+                                  {"phone": "01712345678", "message": "x" * 641}])
+def test_manual_send_validates(as_user, owner, sms_outbox, body):
+    assert as_user(owner).post(f"{A}/sms-log/send/", body, format="json").status_code == 400
+    assert sms_outbox.sent == []
+
+
+def test_manual_send_needs_permission(as_user, make_staff, sms_outbox):
+    r = as_user(make_staff("sms_log.view")).post(f"{A}/sms-log/send/",
+                                                 {"phone": "01712345678", "message": "Hi"}, format="json")
+    assert r.status_code == 403 and sms_outbox.sent == []
