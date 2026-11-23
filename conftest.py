@@ -72,7 +72,7 @@ def sms_outbox(monkeypatch):
 @pytest.fixture(autouse=True)
 def _checkout_otp_off(request, monkeypatch):
     """CHK-11 (v1.11): guest orders need a verified number. Older checkout tests predate it,
-    so it is off unless a test asks for the `checkout_otp` fixture (shop/tests/test_checkout_otp)."""
+    so it is off unless a test asks for the `checkout_otp` fixture."""
     if "checkout_otp" not in request.fixturenames:
         monkeypatch.setattr("apps.shop.checkout.require_verified_phone", lambda *a, **k: None)
 
