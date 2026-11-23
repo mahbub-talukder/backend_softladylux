@@ -105,7 +105,8 @@ PUBLIC_SETTINGS_FIELDS = [
     "facebook_url", "instagram_url", "youtube_url", "tiktok_url", "messenger_link",
     "footer_about", "copyright_text", "bkash_number", "bkash_account_type", "nagad_number",
     "nagad_account_type", "bank_name", "bank_account_name", "bank_account_number", "bank_branch",
-    "bank_routing_number", "payment_instructions", "cod_enabled", "delivery_fee_inside_dhaka",
+    "bank_routing_number", "map_latitude", "map_longitude",
+    "payment_instructions", "cod_enabled", "delivery_fee_inside_dhaka",
     "delivery_fee_outside_dhaka", "delivery_time_inside_dhaka", "delivery_time_outside_dhaka",
     "seo_title", "seo_description", "seo_share_image", "gtm_id",
 ]  # SET-06: never the internal fields (order rules, SMS credentials)

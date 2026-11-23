@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -75,6 +76,13 @@ class SiteSettings(SingletonModel):
     bkash_account_type = models.CharField(max_length=20, blank=True)
     nagad_number = models.CharField(max_length=20, blank=True)
     nagad_account_type = models.CharField(max_length=20, blank=True)
+    # v1.11 owner request: shop location for the Contact page Google map (both empty = no map).
+    map_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)])
+    map_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)])
     # CHK-04 / SET (v1.11): static Bank payment method; hidden while the account number is empty.
     bank_name = models.CharField(max_length=80, blank=True)
     bank_account_name = models.CharField(max_length=120, blank=True)

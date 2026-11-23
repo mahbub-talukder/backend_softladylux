@@ -188,3 +188,15 @@ def test_custom_palette_carries_background_and_text(as_user, owner, api_client):
     plain = c.post(f"{A}/theme/palettes/", {"name": "Plain", "primary_hex": "#1f2f4f",
                                             "accent_hex": "#b7c4dc"}, format="json")
     assert plain.data["background_hex"] == "#F8F4EC"  # optional on create
+
+
+def test_map_location_settings(as_user, owner, api_client):  # v1.11: Contact page Google map
+    c = as_user(owner)
+    assert c.patch("/api/v1/admin/settings/", {"map_latitude": "23.780573", "map_longitude": "90.414140"},
+                   format="json").status_code == 200
+    pub = api_client.get("/api/v1/settings/").data
+    assert (pub["map_latitude"], pub["map_longitude"]) == ("23.780573", "90.414140")
+    for bad in ({"map_latitude": "91"}, {"map_longitude": "-181"}):
+        assert c.patch("/api/v1/admin/settings/", bad, format="json").status_code == 400
+    assert c.patch("/api/v1/admin/settings/", {"map_latitude": None, "map_longitude": None},
+                   format="json").status_code == 200
