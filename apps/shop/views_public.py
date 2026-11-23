@@ -19,6 +19,7 @@ from apps.core.throttles import (
     CartValidateThrottle,
     CheckoutThrottle,
     CouponValidateThrottle,
+    OtpIpThrottle,
     TrackThrottle,
 )
 
@@ -120,6 +121,50 @@ class CheckoutView(APIView):
                                      idempotency_key=(str(key)[:64] if key else None))
         data = CustomerOrderSerializer(order).data
         return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+def _checkout_phone(request):
+    try:
+        phone = normalize_phone(request.data.get("phone"))
+    except ValueError as e:
+        raise ValidationError({"phone": str(e)}) from None
+    if not phone:
+        raise ValidationError({"phone": "Enter your mobile number."})
+    return phone
+
+
+class CheckoutOtpView(APIView):
+    """CHK-11 (v1.11): send a 4-digit code to a guest's checkout number. Answers
+    {"status": "verified"} without sending anything when the number needs no code (D6)."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+    throttle_classes = [OtpIpThrottle]
+
+    def post(self, request):
+        from apps.accounts import otp
+
+        phone = _checkout_phone(request)
+        if not SiteSettings.load().checkout_otp_enabled or otp.phone_is_verified(phone):
+            return Response({"status": "verified", "phone": phone})
+        otp.issue(phone, "checkout")  # limits checked first; nothing is sent when one is hit
+        return Response({"status": "sent", "phone": phone, "resend_in": otp.RESEND_AFTER,
+                         "digits": otp.DIGITS["checkout"]}, status=status.HTTP_202_ACCEPTED)
+
+
+class CheckoutOtpVerifyView(APIView):
+    """CHK-11 (v1.11): check the code; the number is stored as verified."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+    throttle_classes = [OtpIpThrottle]
+
+    def post(self, request):
+        from apps.accounts import otp
+
+        phone = _checkout_phone(request)
+        otp.verify_checkout(phone, request.data.get("code"))
+        return Response({"status": "verified", "phone": phone})
 
 
 class PaymentMethodsView(APIView):

@@ -19,7 +19,7 @@ from rest_framework.exceptions import Throttled, ValidationError
 
 from apps.core import sms
 
-from .models import Otp, SmsStatus
+from .models import Otp, SmsStatus, User, VerifiedPhone
 
 log = logging.getLogger(__name__)
 
@@ -136,3 +136,20 @@ def verify(phone: str, purpose: str, code: str) -> Otp:
     if error:
         raise ValidationError({"code": error})
     return otp
+
+
+# ------------------------------------------------------------------ guest checkout (v1.11 CHK-11)
+
+
+def phone_is_verified(phone: str) -> bool:
+    """D6: a number counts as verified when a guest proved it at checkout, or it belongs to a
+    registered account whose number was verified at registration."""
+    return (VerifiedPhone.objects.filter(phone=phone).exists()
+            or User.objects.filter(phone=phone, phone_verified=True).exists())
+
+
+def verify_checkout(phone: str, code: str) -> VerifiedPhone:
+    verify(phone, "checkout", code)
+    vp, _ = VerifiedPhone.objects.update_or_create(phone=phone,
+                                                   defaults={"verified_at": timezone.now()})
+    return vp

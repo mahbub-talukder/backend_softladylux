@@ -70,6 +70,20 @@ def sms_outbox(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _checkout_otp_off(request, monkeypatch):
+    """CHK-11 (v1.11): guest orders need a verified number. Older checkout tests predate it, so it
+    is off unless a test asks for the `checkout_otp` fixture (apps/shop/tests/test_checkout_otp.py)."""
+    if "checkout_otp" not in request.fixturenames:
+        monkeypatch.setattr("apps.shop.checkout.require_verified_phone", lambda *a, **k: None)
+
+
+@pytest.fixture
+def checkout_otp():
+    """Opt in to the real CHK-11 guest phone check."""
+    return True
+
+
+@pytest.fixture(autouse=True)
 def _no_real_steadfast(monkeypatch):
     """CRR (v1.7): Steadfast has no sandbox, so a real call would book a real parcel. Any test that
     reaches the network layer without the `steadfast` fake fails loudly."""

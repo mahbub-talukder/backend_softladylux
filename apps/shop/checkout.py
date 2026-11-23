@@ -60,6 +60,20 @@ def clean_trx(value, method, exclude_payment=None):
     return trx
 
 
+def require_verified_phone(phone: str, user=None):
+    """CHK-11 (v1.11): a guest must have verified this number by SMS OTP. Logged-in customers
+    skip (their number was verified at registration). Switchable in Admin → Settings → SMS."""
+    from apps.accounts.otp import phone_is_verified
+
+    if user is not None and getattr(user, "is_authenticated", False):
+        return
+    if not SiteSettings.load().checkout_otp_enabled:
+        return
+    if not phone_is_verified(phone):
+        raise Conflict("Please verify your mobile number to place the order.",
+                       code="phone_unverified", fields={"phone": phone})
+
+
 def delivery_fee(site: SiteSettings, area: str) -> Decimal:
     return (site.delivery_fee_inside_dhaka if area == Area.INSIDE
             else site.delivery_fee_outside_dhaka)
@@ -132,6 +146,7 @@ def place_order(data: dict, user=None, idempotency_key=None) -> tuple[Order, boo
     site = SiteSettings.load()
     _required(data, "name", "district", "thana", "address_line")
     phone = clean_phone(data.get("phone"))
+    require_verified_phone(phone, user)  # CHK-11 (v1.11)
     email = (data.get("email") or "").strip().lower()
     if email and "@" not in email:
         raise ValidationError({"email": "Enter a valid email address."})

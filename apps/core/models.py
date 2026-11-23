@@ -105,6 +105,9 @@ class SiteSettings(SingletonModel):
     mimsms_sender_name = models.CharField(max_length=40, blank=True)  # numeric sender, e.g. 8809…
     mimsms_url = models.URLField(blank=True, default="https://api.mimsms.com/api/V2/SMS")
     sms_order_enabled = models.BooleanField(default=True)  # NTF-02: order-received SMS on/off
+    # CHK-11 (v1.11): guests verify their mobile by SMS OTP before ordering. Owner can switch it
+    # off (e.g. while SMS is not set up), otherwise guests could not order at all.
+    checkout_otp_enabled = models.BooleanField(default=True)
 
     # CRR-01 (v1.7): Steadfast courier, configured only here (no env). Keys and the webhook token
     # are shown only to settings.manage (v1.8) and never logged or audited.

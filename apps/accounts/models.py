@@ -106,6 +106,7 @@ class StaffPermission(TimeStampedModel):
 class OtpPurpose(models.TextChoices):
     REGISTER = "register", "Register"
     RESET = "reset", "Reset password"
+    CHECKOUT = "checkout", "Checkout"  # CHK-11 (v1.11)
 
 
 class SmsStatus(models.TextChoices):
@@ -130,6 +131,21 @@ class Otp(TimeStampedModel):
 
     class Meta:
         ordering = ["-sent_at", "-id"]
+
+
+class VerifiedPhone(TimeStampedModel):
+    """SRS v1.11 CHK-11 / §6 accounts_verifiedphone: mobile numbers proven by a guest checkout OTP.
+    A guest ordering with one of these numbers (or a registered, verified account's number) is not
+    asked for a code again."""
+
+    phone = models.CharField(max_length=11, unique=True)
+    verified_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-verified_at"]
+
+    def __str__(self):
+        return self.phone
 
 
 class Address(TimeStampedModel):
