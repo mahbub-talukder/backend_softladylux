@@ -9,7 +9,8 @@ Request (POST, JSON):
      "message"}
 Success = HTTP 2xx and a JSON reply with statusCode "200"; the provider's trxnId is returned.
 
-Callers use `sms.send_sms(...)` (module attribute), so tests replace it in one place. The API key is
+Callers use `sms.send(...)` (v1.11 NTF-07), which writes the SMS log and calls `send_sms`, the bare
+gateway call; tests replace `sms.send_sms` (module attribute) in one place. The API key is
 never logged or put in an error message.
 """
 
@@ -87,4 +88,70 @@ def send_sms(phone: str, message: str) -> str:
     return trxn
 
 
-__all__ = ["SmsError", "send_sms", "to_msisdn", "TRANSACTION_TYPE"]
+# ------------------------------------------------------------------ SMS log (SRS v1.11 NTF-07)
+
+
+def _log_model():
+    from apps.core.models import SmsLog
+
+    return SmsLog
+
+
+def _receiver(phone) -> str:
+    try:
+        return normalize_phone(phone) or str(phone or "")[:11]
+    except ValueError:
+        return str(phone or "")[:11]
+
+
+def _masked(message: str, secret: str | None) -> str:
+    """NTF-07: OTP codes never reach the log."""
+    return message.replace(secret, "*" * len(secret)) if secret else message
+
+
+def log_pending(phone, message: str, source: str, secret: str | None = None) -> int | None:
+    """Create a Pending log row before a send is queued. Returns its id, or None if logging failed:
+    the log must never block or break a send (NTF-07)."""
+    try:
+        return _log_model().objects.create(receiver=_receiver(phone), source=source,
+                                           message=_masked(message, secret)).pk
+    except Exception:  # noqa: BLE001 - logging is best-effort
+        log.exception("Could not write the SMS log")
+        return None
+
+
+def _update_log(log_id, **fields):
+    if not log_id:
+        return
+    try:
+        from django.db.models import F
+
+        if fields.pop("count_attempt", False):
+            fields["attempts"] = F("attempts") + 1
+        _log_model().objects.filter(pk=log_id).update(**fields)
+    except Exception:  # noqa: BLE001 - logging is best-effort
+        log.exception("Could not update the SMS log")
+
+
+def send(phone, message: str, source: str, *, log_id: int | None = None,
+         secret: str | None = None) -> str:
+    """Send one SMS and record it in the SMS log (NTF-07): Pending -> In Progress -> Sent / Failed.
+    Every caller goes through here; `send_sms` stays the bare gateway call. Pass `log_id` from
+    log_pending() when the send was queued; queue retries reuse the same row."""
+    from django.utils import timezone
+
+    Status = _log_model().Status
+    if log_id is None:
+        log_id = log_pending(phone, message, source, secret)
+    _update_log(log_id, status=Status.IN_PROGRESS, count_attempt=True)
+    try:
+        ref = send_sms(phone, message)  # module attribute, so tests can replace it
+    except Exception as e:
+        _update_log(log_id, status=Status.FAILED, error=str(e)[:300])
+        raise
+    _update_log(log_id, status=Status.SENT, provider_ref=str(ref or "")[:80], error="",
+                sent_at=timezone.now())
+    return ref
+
+
+__all__ = ["SmsError", "send_sms", "send", "log_pending", "to_msisdn", "TRANSACTION_TYPE"]

@@ -75,6 +75,12 @@ class SiteSettings(SingletonModel):
     bkash_account_type = models.CharField(max_length=20, blank=True)
     nagad_number = models.CharField(max_length=20, blank=True)
     nagad_account_type = models.CharField(max_length=20, blank=True)
+    # CHK-04 / SET (v1.11): static Bank payment method; hidden while the account number is empty.
+    bank_name = models.CharField(max_length=80, blank=True)
+    bank_account_name = models.CharField(max_length=120, blank=True)
+    bank_account_number = models.CharField(max_length=40, blank=True)
+    bank_branch = models.CharField(max_length=80, blank=True)
+    bank_routing_number = models.CharField(max_length=20, blank=True)
     payment_instructions = models.TextField(blank=True)
     cod_enabled = models.BooleanField(default=True)
 
@@ -105,6 +111,9 @@ class SiteSettings(SingletonModel):
     mimsms_sender_name = models.CharField(max_length=40, blank=True)  # numeric sender, e.g. 8809…
     mimsms_url = models.URLField(blank=True, default="https://api.mimsms.com/api/V2/SMS")
     sms_order_enabled = models.BooleanField(default=True)  # NTF-02: order-received SMS on/off
+    # CHK-11 (v1.11): guests verify their mobile by SMS OTP before ordering. Owner can switch it
+    # off (e.g. while SMS is not set up), otherwise guests could not order at all.
+    checkout_otp_enabled = models.BooleanField(default=True)
 
     # CRR-01 (v1.7): Steadfast courier, configured only here (no env). Keys and the webhook token
     # are shown only to settings.manage (v1.8) and never logged or audited.
@@ -288,6 +297,39 @@ class AuditLog(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class SmsLog(TimeStampedModel):
+    """SRS v1.11 NTF-07 / §6 core_smslog: one row per SMS sent through the provider. The message is
+    stored as sent except OTP codes, which are masked. Written by apps.core.sms.send() only."""
+
+    class Source(models.TextChoices):
+        OTP_REGISTER = "otp_register", "Registration OTP"
+        OTP_RESET = "otp_reset", "Password reset OTP"
+        OTP_CHECKOUT = "otp_checkout", "Checkout OTP"
+        ORDER_RECEIVED = "order_received", "Order received"
+        ADMIN_TEST = "admin_test", "Admin test"
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        IN_PROGRESS = "in_progress", "In Progress"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"  # v1.11 owner decision D5
+
+    receiver = models.CharField(max_length=11, db_index=True)
+    message = models.TextField()
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.OTHER)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING,
+                              db_index=True)
+    provider_ref = models.CharField(max_length=80, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["-created_at"])]
 
 
 class ContactMessage(TimeStampedModel):

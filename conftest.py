@@ -44,7 +44,7 @@ class SmsOutbox:
 
     def __init__(self):
         self.sent: list[tuple[str, str]] = []  # (phone, message)
-        self.codes: list[str] = []  # 6-digit codes found in the messages (OTP tests)
+        self.codes: list[str] = []  # 4- or 6-digit codes found in the messages (OTP tests)
         self.fail: str | None = None
 
     def send(self, phone, message):
@@ -55,7 +55,7 @@ class SmsOutbox:
         if self.fail:
             raise SmsError(self.fail)
         self.sent.append((phone, message))
-        if m := re.search(r"\b(\d{6})\b", message):
+        if m := re.search(r"code is (\d{4,6})\b", message):
             self.codes.append(m.group(1))
         return "TEST-TRXN"
 
@@ -67,6 +67,20 @@ def sms_outbox(monkeypatch):
     box = SmsOutbox()
     monkeypatch.setattr("apps.core.sms.send_sms", box.send)
     return box
+
+
+@pytest.fixture(autouse=True)
+def _checkout_otp_off(request, monkeypatch):
+    """CHK-11 (v1.11): guest orders need a verified number. Older checkout tests predate it,
+    so it is off unless a test asks for the `checkout_otp` fixture."""
+    if "checkout_otp" not in request.fixturenames:
+        monkeypatch.setattr("apps.shop.checkout.require_verified_phone", lambda *a, **k: None)
+
+
+@pytest.fixture
+def checkout_otp():
+    """Opt in to the real CHK-11 guest phone check."""
+    return True
 
 
 @pytest.fixture(autouse=True)

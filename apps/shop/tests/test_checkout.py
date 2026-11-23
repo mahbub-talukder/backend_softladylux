@@ -193,3 +193,43 @@ def test_status_log_written_on_placement():
 
 def test_site_settings_untouched():
     assert SiteSettings.load().delivery_fee_inside_dhaka == 60
+
+
+# ---------------------------------------------------------------- Bank (v1.11 CHK-04, PAY, scenario 55)
+
+
+def bank(variant, ref="BRAC-2026-11-0042", **kw):
+    return payload(variant, payment_method="bank", trx_id=ref, sender_name="Nusrat Jahan", **kw)
+
+
+def test_scenario_55_bank_order_pending_and_duplicate_ref_refused(api_client):
+    configure_site(bank_account_number="1501201234567")
+    order, _ = place_order(bank(one_variant()))
+    assert order.payment.method == "bank" and order.payment.status == PayStatus.PENDING
+    assert order.payment.trx_id == "BRAC-2026-11-0042" and order.payment.sender_name == "Nusrat Jahan"
+    with pytest.raises(ValidationError):
+        place_order(bank(one_variant("Other"), ref="brac-2026-11-0042"))
+
+
+def test_bank_hidden_without_account_number():
+    configure_site(bank_account_number="")
+    with pytest.raises(ValidationError):
+        place_order(bank(one_variant()))
+
+
+@pytest.mark.parametrize("change", [{"trx_id": "AB1"}, {"trx_id": "-ABCDEF"}, {"sender_name": ""}])
+def test_bank_needs_valid_ref_and_name(change):
+    configure_site(bank_account_number="1501201234567")
+    with pytest.raises(ValidationError):
+        place_order({**bank(one_variant()), **change})
+
+
+def test_bank_order_cannot_confirm_until_verified():
+    from apps.shop.orders import transition, verify_payment
+
+    configure_site(bank_account_number="1501201234567")
+    order, _ = place_order(bank(one_variant()))
+    with pytest.raises(Conflict):
+        transition(order.id, OrderStatus.CONFIRMED)
+    verify_payment(order.id, None)
+    assert transition(order.id, OrderStatus.CONFIRMED).status == OrderStatus.CONFIRMED

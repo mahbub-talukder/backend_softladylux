@@ -182,7 +182,7 @@ def dashboard(perms: set[str], limit=8):
                                "payment_method": o.payment_method, "total": str(o.total),
                                "status": o.status}
                               for o in Order.objects.order_by("-placed_at")[:limit]],
-            # PAY-08: Pending bKash/Nagad payments, oldest first
+            # PAY-08: Pending bKash/Nagad/Bank payments, oldest first
             "payments_to_verify": [
                 {"id": o.id, "number": o.number, "name": o.name, "method": o.payment_method,
                  "trx_id": o.payment.trx_id, "total": str(o.total), "placed_at": o.placed_at}

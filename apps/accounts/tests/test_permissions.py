@@ -7,13 +7,13 @@ from apps.accounts.models import Role, User
 pytestmark = pytest.mark.django_db
 
 
-def test_catalogue_has_17_codes_and_defaults():
-    assert len(perms.CODES) == 17  # §2.2: 15 codes + courier.view, courier.manage (v1.7)
+def test_catalogue_has_18_codes_and_defaults():
+    assert len(perms.CODES) == 18  # §2.2: 15 + courier.view, courier.manage (v1.7), sms_log.view (v1.11)
     assert set(perms.DEFAULT_CODES) == {
         "dashboard.view", "orders.view", "orders.manage", "payments.verify", "products.view",
         "products.manage", "inventory.view", "inventory.adjust", "courier.view"}
     assert perms.SENSITIVE_CODES == {"payments.verify", "inventory.adjust", "settings.manage",
-                                     "theme.manage", "courier.manage"}
+                                     "theme.manage", "courier.manage", "sms_log.view"}
 
 
 def test_dependencies_closed_and_unknown_dropped():  # PRM-05

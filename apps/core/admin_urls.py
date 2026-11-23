@@ -33,5 +33,6 @@ urlpatterns = [
     path("newsletter/", eng.SubscriberListView.as_view(), name="admin-newsletter"),
     path("newsletter/export/", eng.SubscriberExportView.as_view(), name="admin-newsletter-export"),
     path("audit-log/", v.AuditLogView.as_view(), name="admin-audit-log"),
+    path("sms-log/", v.SmsLogView.as_view(), name="admin-sms-log"),  # ADM-14 (v1.11)
     path("", include(router.urls)),
 ]

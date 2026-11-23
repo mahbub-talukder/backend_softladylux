@@ -1,7 +1,10 @@
 """Courier tables. SRS v1.7 §6 courier_*; CRR-03..CRR-13."""
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import TimeStampedModel
 
@@ -16,6 +19,9 @@ class Attention(models.TextChoices):
     RETURNING = "returning", "Courier returning parcel"
     RETURNED_TO_MERCHANT = "returned_to_merchant", "Parcel back with you"
     EXCEPTIONAL = "exceptional", "Lost or damaged at courier"
+
+
+BOOKING_STALE = timedelta(minutes=10)  # ORD-14 (v1.11): a queued booking older than this is lost
 
 
 class Shipment(TimeStampedModel):
@@ -34,6 +40,9 @@ class Shipment(TimeStampedModel):
     booked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                   on_delete=models.SET_NULL, related_name="+")
     last_event_at = models.DateTimeField(null=True, blank=True)  # CRR-11: last webhook/poll news
+    # ORD-14 (v1.11): set when an auto-booking is queued, cleared when it books or fails. While
+    # it is recent, Move to Shipping waits ("Booking with Steadfast...") and manual ship is refused.
+    queued_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [models.Index(fields=["attention"])]
@@ -41,6 +50,12 @@ class Shipment(TimeStampedModel):
     @property
     def is_booked(self) -> bool:
         return self.consignment_id is not None
+
+    @property
+    def booking_in_progress(self) -> bool:
+        # ORD-14: a queued booking older than BOOKING_STALE counts as lost (e.g. worker down).
+        return bool(self.queued_at and not self.is_booked
+                    and timezone.now() - self.queued_at < BOOKING_STALE)
 
 
 class CourierEvent(TimeStampedModel):

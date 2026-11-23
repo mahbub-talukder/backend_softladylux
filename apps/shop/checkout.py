@@ -31,6 +31,8 @@ from .models import (
 from .orders import add_log
 
 TRX_RE = re.compile(r"^[A-Z0-9]{8,12}$")
+BANK_REF_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{4,28}[A-Z0-9]$")  # CHK-04 (v1.11): 6–30
+PREPAID = (PayMethod.BKASH, PayMethod.NAGAD, PayMethod.BANK)  # verified by staff (PAY-03)
 
 
 def clean_phone(value, field="phone"):
@@ -48,9 +50,13 @@ def clean_sender(value):
 
 
 def clean_trx(value, method, exclude_payment=None):
-    """CHK-05: alphanumeric 8–12, upper-cased, unique per method."""
+    """CHK-05: alphanumeric 8–12, upper-cased, unique per method. Bank (v1.11): letters, digits
+    and '-', 6–30."""
     trx = (value or "").strip().upper()
-    if not TRX_RE.match(trx):
+    if method == PayMethod.BANK:
+        if not BANK_REF_RE.match(trx):
+            raise ValidationError({"trx_id": "Reference ID must be 6–30 letters, digits or '-'."})
+    elif not TRX_RE.match(trx):
         raise ValidationError({"trx_id": "Transaction ID must be 8–12 letters or digits."})
     taken = Payment.objects.filter(method=method, trx_id=trx)
     if exclude_payment:
@@ -58,6 +64,27 @@ def clean_trx(value, method, exclude_payment=None):
     if taken.exists():
         raise ValidationError({"trx_id": "This transaction ID has already been used."})
     return trx
+
+
+def require_verified_phone(phone: str, user=None):
+    """CHK-11 (v1.11): a guest must have verified this number by SMS OTP. Logged-in customers
+    skip (their number was verified at registration). Switchable in Admin → Settings → SMS."""
+    from apps.accounts.otp import phone_is_verified
+
+    if user is not None and getattr(user, "is_authenticated", False):
+        return
+    if not SiteSettings.load().checkout_otp_enabled:
+        return
+    if not phone_is_verified(phone):
+        raise Conflict("Please verify your mobile number to place the order.",
+                       code="phone_unverified", fields={"phone": phone})
+
+
+def clean_sender_name(value):
+    name = " ".join((value or "").split())
+    if len(name) < 2:
+        raise ValidationError({"sender_name": "Enter the account holder name."})
+    return name[:120]
 
 
 def delivery_fee(site: SiteSettings, area: str) -> Decimal:
@@ -68,7 +95,8 @@ def delivery_fee(site: SiteSettings, area: str) -> Decimal:
 def method_enabled(site: SiteSettings, method: str) -> bool:
     """§11 'Settings missing': bKash/Nagad are hidden when their number is empty."""
     return {PayMethod.COD: site.cod_enabled, PayMethod.BKASH: bool(site.bkash_number),
-            PayMethod.NAGAD: bool(site.nagad_number)}[method]
+            PayMethod.NAGAD: bool(site.nagad_number),
+            PayMethod.BANK: bool(site.bank_account_number)}[method]
 
 
 def next_number() -> str:
@@ -132,6 +160,7 @@ def place_order(data: dict, user=None, idempotency_key=None) -> tuple[Order, boo
     site = SiteSettings.load()
     _required(data, "name", "district", "thana", "address_line")
     phone = clean_phone(data.get("phone"))
+    require_verified_phone(phone, user)  # CHK-11 (v1.11)
     email = (data.get("email") or "").strip().lower()
     if email and "@" not in email:
         raise ValidationError({"email": "Enter a valid email address."})
@@ -142,9 +171,13 @@ def place_order(data: dict, user=None, idempotency_key=None) -> tuple[Order, boo
     if method not in PayMethod.values or not method_enabled(site, method):
         raise ValidationError({"payment_method": "This payment method is not available."})
     sender = trx = None
+    sender_name = ""
     if method in (PayMethod.BKASH, PayMethod.NAGAD):  # CHK-04 both are required
         sender = clean_sender(data.get("sender_number"))
         trx = clean_trx(data.get("trx_id"), method)
+    elif method == PayMethod.BANK:  # CHK-04 (v1.11): reference ID + account holder name
+        trx = clean_trx(data.get("trx_id"), method)
+        sender_name = clean_sender_name(data.get("sender_name"))
 
     rows, subtotal = price_lines(data.get("lines"), lock=True)
     discount, coupon_code, coupon = Decimal(0), "", None
@@ -179,7 +212,8 @@ def place_order(data: dict, user=None, idempotency_key=None) -> tuple[Order, boo
                 weight_grams=v.weight)  # CAT-26 snapshot
                 for v, qty, price in rows])
             Payment.objects.create(order=order, method=method, amount=total,
-                                   sender_number=sender or "", trx_id=trx,
+                                   sender_number=sender or "", sender_name=sender_name,
+                                   trx_id=trx,
                                    status=PayStatus.PENDING)
     except IntegrityError:  # a concurrent identical TrxID or idempotency key
         if idempotency_key and (dup := Order.objects.filter(

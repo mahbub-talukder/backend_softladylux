@@ -10,11 +10,13 @@ class ShipmentSerializer(serializers.ModelSerializer):
 
     attention_label = serializers.CharField(source="get_attention_display", read_only=True)
     is_booked = serializers.BooleanField(read_only=True)
+    booking_in_progress = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Shipment
         fields = ["consignment_id", "tracking_code", "tracking_link", "courier_status", "status_at",
-                  "attention", "attention_label", "last_error", "booked_at", "is_booked"]
+                  "attention", "attention_label", "last_error", "booked_at", "is_booked",
+                  "booking_in_progress"]  # ORD-14 (v1.11)
 
 
 class CourierEventSerializer(serializers.ModelSerializer):

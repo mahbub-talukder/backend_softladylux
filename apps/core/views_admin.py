@@ -4,6 +4,8 @@ SRS ADM-04/05/10/11, SET-07, THM-02/07/08/10/14/19, WEB-01..10, PRM-03 (each vie
 the permission it needs), §2.2 (audit log is Owner-only).
 """
 
+from datetime import date
+
 from rest_framework import generics, mixins, serializers, status, viewsets
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
@@ -20,6 +22,7 @@ from .models import (
     CarouselSlide,
     Page,
     SiteSettings,
+    SmsLog,
     ThemePalette,
     ThemeSettings,
     TrustItem,
@@ -83,7 +86,8 @@ class SmsTestView(APIView):
             raise serializers.ValidationError({"phone": "Enter a mobile number."})
         name = SiteSettings.load().company_name or "SoftLadyLux"
         try:
-            trxn = sms.send_sms(phone, f"{name}: test SMS from Admin settings. SMS is working.")
+            trxn = sms.send(phone, f"{name}: test SMS from Admin settings. SMS is working.",
+                            "admin_test")  # logged, NTF-07 (v1.11)
         except sms.SmsError as e:
             audit.log(request, "sms_test", "SiteSettings", 1, None, {"phone": phone, "ok": False})
             return Response({"ok": False, "detail": str(e)})  # shown inline, not as an error
@@ -452,3 +456,44 @@ class AuditLogView(generics.ListAPIView):
         qs = AuditLog.objects.select_related("user")
         m = self.request.query_params.get("model")
         return qs.filter(model=m) if m else qs
+
+
+# ---------------------------------------------------------------- SMS log (v1.11 NTF-07, ADM-14)
+
+
+class SmsLogSerializer(serializers.ModelSerializer):
+    source_label = serializers.CharField(source="get_source_display", read_only=True)
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = SmsLog
+        fields = ["id", "created_at", "receiver", "message", "source", "source_label", "status",
+                  "status_label", "provider_ref", "error", "attempts", "sent_at"]
+
+
+class SmsLogView(generics.ListAPIView):
+    """ADM-14: read-only, newest first, paginated (ADM-07). Filters: status, source, from/to
+    (YYYY-MM-DD, local dates, inclusive) and q (part of the receiver number)."""
+
+    permission_classes = [require("sms_log.view")]
+    serializer_class = SmsLogSerializer
+
+    def get_queryset(self):
+        qs = SmsLog.objects.all()
+        p = self.request.query_params
+        if (st := p.get("status")) in SmsLog.Status.values:
+            qs = qs.filter(status=st)
+        if (src := p.get("source")) in SmsLog.Source.values:
+            qs = qs.filter(source=src)
+        for key, lookup in (("from", "created_at__date__gte"), ("to", "created_at__date__lte")):
+            if value := p.get(key):
+                try:
+                    qs = qs.filter(**{lookup: date.fromisoformat(value)})
+                except ValueError:
+                    raise serializers.ValidationError({key: "Use YYYY-MM-DD."}) from None
+        q = "".join(ch for ch in p.get("q", "") if ch.isdigit())
+        if q.startswith("880"):  # +8801XXXXXXXXX
+            q = q[2:]
+        if q:
+            qs = qs.filter(receiver__contains=q)
+        return qs
