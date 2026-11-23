@@ -154,7 +154,7 @@ def _refuse_while_booking(order):
 
     ship = Shipment.objects.filter(order=order).first()
     if ship and ship.booking_in_progress:
-        raise Conflict("A Steadfast booking for this order is in progress. Wait a moment and refresh.",
+        raise Conflict("A Steadfast booking for this order is in progress. Wait and refresh.",
                        code="booking_in_progress")
 
 
