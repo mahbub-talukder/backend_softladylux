@@ -44,7 +44,7 @@ class SmsOutbox:
 
     def __init__(self):
         self.sent: list[tuple[str, str]] = []  # (phone, message)
-        self.codes: list[str] = []  # 6-digit codes found in the messages (OTP tests)
+        self.codes: list[str] = []  # 4- or 6-digit codes found in the messages (OTP tests)
         self.fail: str | None = None
 
     def send(self, phone, message):
@@ -55,7 +55,7 @@ class SmsOutbox:
         if self.fail:
             raise SmsError(self.fail)
         self.sent.append((phone, message))
-        if m := re.search(r"\b(\d{6})\b", message):
+        if m := re.search(r"code is (\d{4,6})\b", message):
             self.codes.append(m.group(1))
         return "TEST-TRXN"
 

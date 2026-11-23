@@ -71,7 +71,7 @@ def order_sms_text(order, company: str) -> str:
             "We will call you to confirm. Thank you!")
 
 
-def send_order_sms(order_id):
+def send_order_sms(order_id, log_id=None):
     """Task: order-received SMS to the customer (NTF-02, v1.6). Skipped when switched off in
     Admin → Settings → SMS. Raises SmsError so the queue retries (3 attempts)."""
     from .models import Order
@@ -81,7 +81,8 @@ def send_order_sms(order_id):
         return
     order = Order.objects.get(pk=order_id)
     try:
-        sms.send_sms(order.phone, order_sms_text(order, site.company_name))
+        sms.send(order.phone, order_sms_text(order, site.company_name), "order_received",
+                 log_id=log_id)
     except sms.SmsError as e:
         log.warning("Order SMS for %s failed: %s", order.number, e)
         raise
@@ -100,7 +101,23 @@ def _enqueue(func_path, *args):
 
 def queue_order_received(order_id):
     _enqueue("apps.shop.notifications.send_order_received", order_id)
-    _enqueue("apps.shop.notifications.send_order_sms", order_id)  # NTF-02 (v1.6)
+    _enqueue("apps.shop.notifications.send_order_sms", order_id, _order_sms_log(order_id))  # NTF-02
+
+
+def _order_sms_log(order_id):
+    """NTF-07 (v1.11): the order SMS shows as Pending in the SMS log while it waits in the queue."""
+    try:
+        from .models import Order
+
+        site = SiteSettings.load()
+        if not site.sms_order_enabled:
+            return None
+        order = Order.objects.get(pk=order_id)
+        return sms.log_pending(order.phone, order_sms_text(order, site.company_name),
+                               "order_received")
+    except Exception:  # noqa: BLE001 - NTF-06/07: never block checkout
+        log.exception("Could not log the order SMS")
+        return None
 
 
 def queue_status_email(order_id, from_status, to_status):

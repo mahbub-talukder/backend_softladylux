@@ -29,6 +29,8 @@ CATALOGUE = [
      True, False),
     ("courier.manage", "Orders", "Book Steadfast parcels, bulk booking, pickups and returns",
      False, True),
+    # NTF-07 / ADM-14 (v1.11): SMS log (receiver numbers and message text, read-only).
+    ("sms_log.view", "Settings", "SMS log: every SMS sent, its source and status", False, True),
 ]
 CODES = [c[0] for c in CATALOGUE]
 DEFAULT_CODES = [c[0] for c in CATALOGUE if c[3]]

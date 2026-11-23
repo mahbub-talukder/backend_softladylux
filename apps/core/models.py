@@ -290,6 +290,39 @@ class AuditLog(TimeStampedModel):
         ordering = ["-created_at", "-id"]
 
 
+class SmsLog(TimeStampedModel):
+    """SRS v1.11 NTF-07 / §6 core_smslog: one row per SMS sent through the provider. The message is
+    stored as sent except OTP codes, which are masked. Written by apps.core.sms.send() only."""
+
+    class Source(models.TextChoices):
+        OTP_REGISTER = "otp_register", "Registration OTP"
+        OTP_RESET = "otp_reset", "Password reset OTP"
+        OTP_CHECKOUT = "otp_checkout", "Checkout OTP"
+        ORDER_RECEIVED = "order_received", "Order received"
+        ADMIN_TEST = "admin_test", "Admin test"
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        IN_PROGRESS = "in_progress", "In Progress"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"  # v1.11 owner decision D5
+
+    receiver = models.CharField(max_length=11, db_index=True)
+    message = models.TextField()
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.OTHER)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING,
+                              db_index=True)
+    provider_ref = models.CharField(max_length=80, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["-created_at"])]
+
+
 class ContactMessage(TimeStampedModel):
     """SRS §6 core_contactmessage, NTF-01: stored, emailed to the support email, marked handled."""
 
