@@ -37,6 +37,7 @@ def test_every_admin_view_declares_a_permission():  # PRM-03
 MATRIX = [
     ("get", "/settings/", "settings.manage"),
     ("get", "/sms-log/", "sms_log.view"),  # ADM-14 (v1.11)
+    ("post", "/sms-log/send/", "sms.send"),  # v1.11 manual SMS
     ("get", "/theme/", "theme.manage"),
     ("get", "/theme/palettes/", "theme.manage"),
     ("get", "/website/carousel/", "website.manage"),

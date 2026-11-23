@@ -309,6 +309,7 @@ class SmsLog(TimeStampedModel):
         OTP_CHECKOUT = "otp_checkout", "Checkout OTP"
         ORDER_RECEIVED = "order_received", "Order received"
         ADMIN_TEST = "admin_test", "Admin test"
+        ADMIN_MANUAL = "admin_manual", "Admin (manual)"  # v1.11: Send SMS on the SMS log page
         OTHER = "other", "Other"
 
     class Status(models.TextChoices):
