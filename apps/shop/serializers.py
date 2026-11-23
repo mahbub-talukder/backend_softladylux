@@ -92,7 +92,8 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Payment
-        fields = ["id", "method", "amount", "sender_number", "trx_id", "status", "verified_by_name",
+        fields = ["id", "method", "amount", "sender_number", "sender_name",  # sender_name: v1.11
+                  "trx_id", "status", "verified_by_name",
                   "verified_at", "reject_reason", "note"]
 
     def get_verified_by_name(self, p):

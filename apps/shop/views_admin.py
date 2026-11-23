@@ -163,6 +163,7 @@ class OrderViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
         order = get_object_or_404(Order, pk=pk)
         pay = svc.edit_payment(order.id, request.user, trx_id=request.data.get("trx_id"),
                                sender_number=request.data.get("sender_number"),
+                               sender_name=request.data.get("sender_name"),
                                note=request.data.get("note", ""))
         audit.log(request, "payment_edited", "Payment", pay.pk, None, {"order": order.number})
         return Response(PaymentSerializer(pay).data)

@@ -24,6 +24,7 @@ class Area(models.TextChoices):
 class PayMethod(models.TextChoices):
     BKASH = "bkash", "bKash"
     NAGAD = "nagad", "Nagad"
+    BANK = "bank", "Bank"  # CHK-04 (v1.11)
     COD = "cod", "Cash on Delivery"
 
 
@@ -186,7 +187,9 @@ class Payment(TimeStampedModel):
     method = models.CharField(max_length=5, choices=PayMethod.choices)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     sender_number = models.CharField(max_length=11, blank=True)
-    trx_id = models.CharField(max_length=12, null=True, blank=True)  # noqa: DJ001 (NULL for COD: §6)
+    sender_name = models.CharField(max_length=120, blank=True)  # Bank account holder (v1.11)
+    # TrxID (bKash/Nagad, 8–12) or bank reference (6–30, v1.11)
+    trx_id = models.CharField(max_length=30, null=True, blank=True)  # noqa: DJ001 (NULL for COD: §6)
     status = models.CharField(max_length=10, choices=PayStatus.choices, default=PayStatus.PENDING)
     verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                     on_delete=models.SET_NULL, related_name="+")

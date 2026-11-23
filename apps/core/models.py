@@ -75,6 +75,12 @@ class SiteSettings(SingletonModel):
     bkash_account_type = models.CharField(max_length=20, blank=True)
     nagad_number = models.CharField(max_length=20, blank=True)
     nagad_account_type = models.CharField(max_length=20, blank=True)
+    # CHK-04 / SET (v1.11): static Bank payment method; hidden while the account number is empty.
+    bank_name = models.CharField(max_length=80, blank=True)
+    bank_account_name = models.CharField(max_length=120, blank=True)
+    bank_account_number = models.CharField(max_length=40, blank=True)
+    bank_branch = models.CharField(max_length=80, blank=True)
+    bank_routing_number = models.CharField(max_length=20, blank=True)
     payment_instructions = models.TextField(blank=True)
     cod_enabled = models.BooleanField(default=True)
 

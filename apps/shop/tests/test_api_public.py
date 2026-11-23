@@ -94,10 +94,11 @@ def test_coupon_validate_throttled(api_client, monkeypatch):
 
 
 def test_payment_methods_follow_settings(api_client):  # §11
-    assert api_client.get(f"{B}/payment-methods/").data == {"bkash": True, "nagad": True, "cod": True}
-    configure_site(bkash_number="", cod_enabled=False)
+    assert api_client.get(f"{B}/payment-methods/").data == {"bkash": True, "nagad": True,
+                                                            "bank": False, "cod": True}
+    configure_site(bkash_number="", cod_enabled=False, bank_account_number="1501201234567")
     assert api_client.get(f"{B}/payment-methods/").data == {"bkash": False, "nagad": True,
-                                                            "cod": False}
+                                                            "bank": True, "cod": False}  # v1.11
 
 
 # ------------------------------------------------------------------ checkout

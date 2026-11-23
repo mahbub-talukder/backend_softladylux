@@ -2,8 +2,8 @@
 
 Limits: 6-digit code, valid 5 minutes, at most 5 attempts per code, resend only after 60 s,
 5 codes per mobile per hour and 10 per day. The guest checkout code (v1.11 CHK-11) is 4 digits and
-dies after 3 wrong attempts; the other limits are the same. Every SMS costs money, so a request that breaks a
-limit never sends anything. Sending goes through the Django-Q2 queue with retries; the outcome is
+dies after 3 wrong attempts; the other limits are the same. Every SMS costs money, so a request
+that breaks a limit never sends anything. Sending goes through the Django-Q2 queue with retries; the outcome is
 stored on the Otp row so the user can be told if the SMS could not be sent (ACC-02)."""
 
 import hashlib

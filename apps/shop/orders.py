@@ -73,7 +73,7 @@ def _lock_variants(order):
 
 def _confirm(order, user):
     pay = getattr(order, "payment", None)
-    if order.payment_method in (PayMethod.BKASH, PayMethod.NAGAD) and (
+    if order.payment_method in (PayMethod.BKASH, PayMethod.NAGAD, PayMethod.BANK) and (
             pay is None or pay.status != PayStatus.VERIFIED):
         raise Conflict("Verify the payment before confirming this order.",  # ORD-02
                        code="payment_not_verified")
@@ -195,26 +195,29 @@ def reject_payment(order_id, user, reason):
 
 
 @transaction.atomic
-def edit_payment(order_id, user, trx_id=None, sender_number=None, note=""):
+def edit_payment(order_id, user, trx_id=None, sender_number=None, note="", sender_name=None):
     """PAY-06: after a rejection staff may correct the TrxID / sender number. The edit keeps the
     per-method uniqueness check, is logged on the timeline, and puts the payment back to Pending."""
-    from .checkout import clean_sender, clean_trx
+    from .checkout import clean_sender, clean_sender_name, clean_trx
 
     order = _lock_order(order_id)
     pay = _payment(order)
     if pay.method == PayMethod.COD or order.status not in (S.DRAFT, S.CONFIRMED):
         raise Conflict("This payment cannot be edited.", code="invalid_state")
-    before = f"TrxID {pay.trx_id}, sender {pay.sender_number}"
+    who = lambda: pay.sender_name if pay.method == PayMethod.BANK else pay.sender_number  # noqa: E731
+    before = f"TrxID {pay.trx_id}, sender {who()}"
     if trx_id is not None:
         pay.trx_id = clean_trx(trx_id, pay.method, exclude_payment=pay.pk)
-    if sender_number is not None:
+    if sender_number is not None and pay.method != PayMethod.BANK:
         pay.sender_number = clean_sender(sender_number)
+    if sender_name is not None and pay.method == PayMethod.BANK:  # v1.11
+        pay.sender_name = clean_sender_name(sender_name)
     if order.status == S.DRAFT:
         pay.status, pay.reject_reason = PayStatus.PENDING, ""
     pay.note = (note or "")[:300]
     pay.save()
     add_log(order, order.status, order.status, user,
-            f"Payment edited ({before} → TrxID {pay.trx_id}, sender {pay.sender_number}).")
+            f"Payment edited ({before} → TrxID {pay.trx_id}, sender {who()}).")
     return pay
 
 
